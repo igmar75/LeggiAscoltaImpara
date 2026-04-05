@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crucipuzzle per Elia</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --cell: #ffffff;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        #grid { display: grid; gap: 5px; background: #cbd5e1; padding: 5px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .cell { width: 40px; height: 40px; background: var(--cell); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; cursor: pointer; user-select: none; border-radius: 4px; transition: all 0.2s; }
+        .cell:hover { background: #e2e8f0; }
+        .cell.selected { background: var(--primary); color: white; }
+        .cell.found { background: #22c55e; color: white; }
+        #target-word { font-size: 1.5rem; font-weight: bold; margin: 20px 0; color: var(--primary); letter-spacing: 2px; }
+        .stats { margin-top: 20px; font-size: 0.9rem; color: #64748b; }
+        button { padding: 8px 16px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Crucipuzzle: Trova la parola!</h1>
+    
+    <div class="controls">
+        <select id="gridSize">
+            <option value="8">Griglia 8x8</option>
+            <option value="10">Griglia 10x10</option>
+        </select>
+        <button onclick="initGame()">Nuova Partita</button>
+    </div>
+
+    <div id="target-word">CARICAMENTO...</div>
+    <div id="grid"></div>
+
+    <div class="stats">
+        Punteggio salvato in locale: <span id="highScore">0</span> secondi (record)
+    </div>
+
+    <script>
+        const words = ["FISICA", "OTTICA", "PYTHON", "BLENDER", "GUASTALLA", "LINUX", "GALAXY", "CODICE", "ENIGMA", "ELIA"];
+        let currentWord = "";
+        let wordPositions = [];
+        let selectedCells = [];
+        let startTime;
+
+        const letters = "ABCDEFGHILMNOPQRSTUVZ";
+
+        function initGame() {
+            const size = parseInt(document.getElementById('gridSize').value);
+            currentWord = words[Math.floor(Math.random() * words.length)].toUpperCase();
+            document.getElementById('target-word').textContent = `CERCA: ${currentWord}`;
+            
+            // Logica del vecchio generate_puzzle (Python -> JS)
+            const gridData = Array.from({ length: size }, () => 
+                Array.from({ length: size }, () => letters[Math.floor(Math.random() * letters.length)])
+            );
+
+            const isVertical = Math.random() > 0.5;
+            wordPositions = [];
+            
+            if (!isVertical) {
+                const row = Math.floor(Math.random() * size);
+                const startCol = Math.floor(Math.random() * (size - currentWord.length + 1));
+                for (let i = 0; i < currentWord.length; i++) {
+                    gridData[row][startCol + i] = currentWord[i];
+                    wordPositions.push(`${row}-${startCol + i}`);
+                }
+            } else {
+                const col = Math.floor(Math.random() * size);
+                const startRow = Math.floor(Math.random() * (size - currentWord.length + 1));
+                for (let i = 0; i < currentWord.length; i++) {
+                    gridData[startRow + i][col] = currentWord[i];
+                    wordPositions.push(`${startRow + i}-${col}`);
+                }
+            }
+
+            renderGrid(gridData, size);
+            selectedCells = [];
+            startTime = Date.now();
+            updateScoreDisplay();
+        }
+
+        function renderGrid(data, size) {
+            const gridElement = document.getElementById('grid');
+            gridElement.style.gridTemplateColumns = `repeat(${size}, 40px)`;
+            gridElement.innerHTML = '';
+
+            data.forEach((row, rIdx) => {
+                row.forEach((char, cIdx) => {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.textContent = char;
+                    cell.dataset.pos = `${rIdx}-${cIdx}`;
+                    cell.onclick = () => handleCellClick(cell);
+                    gridElement.appendChild(cell);
+                });
+            });
+        }
+
+        function handleCellClick(cell) {
+            const pos = cell.dataset.pos;
+            if (selectedCells.includes(pos)) return;
+
+            cell.classList.add('selected');
+            selectedCells.push(pos);
+
+            // Controllo vittoria
+            const foundAll = wordPositions.every(p => selectedCells.includes(p));
+            if (foundAll && selectedCells.length === wordPositions.length) {
+                const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
+                alert(`Trovata! Tempo: ${timeTaken} secondi`);
+                saveScore(timeTaken);
+                document.querySelectorAll('.cell.selected').forEach(c => c.classList.add('found'));
+                setTimeout(initGame, 2000);
+            } else if (selectedCells.length >= currentWord.length && !foundAll) {
+                // Reset se sbaglia sequenza
+                setTimeout(() => {
+                    document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
+                    selectedCells = [];
+                }, 300);
+            }
+        }
+
+        function saveScore(time) {
+            const lastBest = localStorage.getItem('bestScore') || Infinity;
+            if (time < lastBest) {
+                localStorage.setItem('bestScore', time);
+                updateScoreDisplay();
+            }
+        }
+
+        function updateScoreDisplay() {
+            const best = localStorage.getItem('bestScore') || "Nessuno";
+            document.getElementById('highScore').textContent = best;
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
