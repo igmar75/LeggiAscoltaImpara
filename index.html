@@ -150,7 +150,7 @@ function handleCellClick(cell) {
     if (selectedCells.includes(pos)) return;
 
     // Riproduci suono al click
-    soundClick.play().catch(e => console.log("Audio blocked by browser"));
+    soundClick.play().catch(e => console.log("Audio bloccato dal browser"));
 
     cell.classList.add('selected');
     selectedCells.push(pos);
@@ -158,17 +158,23 @@ function handleCellClick(cell) {
     const foundAll = wordPositions.every(p => selectedCells.includes(p));
     
     if (foundAll && selectedCells.length === wordPositions.length) {
-        // RIPRODUCI SUONO VITTORIA
         soundWin.play();
-        
         const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
-        // ... resto del codice ...
-    } else if (selectedCells.length >= currentWord.length && !foundAll) {
-        // RIPRODUCI SUONO ERRORE
-        soundError.play();
         
+        // Aspettiamo un attimo prima dell'alert così si vede l'effetto grafico
         setTimeout(() => {
-            document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
+            alert(`Grande Elia! Parola trovata in ${timeTaken} secondi`);
+            saveScore(timeTaken);
+            document.querySelectorAll('.cell.selected').forEach(c => c.classList.add('found'));
+            setTimeout(initGame, 1000);
+        }, 100);
+
+    } else if (selectedCells.length >= currentWord.length && !foundAll) {
+        soundError.play();
+        setTimeout(() => {
+            document.querySelectorAll('.cell').forEach(c => {
+                if (!c.classList.contains('found')) c.classList.remove('selected');
+            });
             selectedCells = [];
         }, 300);
     }
