@@ -140,6 +140,45 @@
             document.getElementById('highScore').textContent = best;
         }
 
+        // 1. Definisci gli oggetti audio (assicurati che i nomi dei file coincidano)
+const soundWin = new Audio('audio/vittoria.mp3');
+const soundClick = new Audio('audio/click.mp3');
+const soundError = new Audio('audio/errore.mp3');
+
+function handleCellClick(cell) {
+    const pos = cell.dataset.pos;
+    if (selectedCells.includes(pos)) return;
+
+    // Riproduci suono al click
+    soundClick.play().catch(e => console.log("Audio blocked by browser"));
+
+    cell.classList.add('selected');
+    selectedCells.push(pos);
+
+    const foundAll = wordPositions.every(p => selectedCells.includes(p));
+    
+    if (foundAll && selectedCells.length === wordPositions.length) {
+        // RIPRODUCI SUONO VITTORIA
+        soundWin.play();
+        
+        const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
+        // ... resto del codice ...
+    } else if (selectedCells.length >= currentWord.length && !foundAll) {
+        // RIPRODUCI SUONO ERRORE
+        soundError.play();
+        
+        setTimeout(() => {
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
+            selectedCells = [];
+        }, 300);
+    }
+}
+        
+
+
+
+
+        
         initGame();
     </script>
 </body>
