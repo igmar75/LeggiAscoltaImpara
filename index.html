@@ -53,16 +53,19 @@
             return <i data-lucide={name} ref={iconRef} className={className} style={{ width: size, height: size, fill: fill }}></i>;
         };
 
-        const WORDS_LIST = [
+        const GRID_SIZE = 6;
+        const WORDS_PER_REWARD = 5;
+
+        // Lista di parole standard da usare se il file esterno non è disponibile
+        const FALLBACK_WORDS = [
             "MAMMA", "PAPA", "NONNO", "NONNA", "CANE", "GATTO", "SOLE", "MARE", 
             "CASA", "PALLA", "LIBRO", "FIORE", "PANE", "LATTE", "MELA", "NIDO",
             "RANA", "LUNA", "LUCE", "ORSO", "UVA", "VINO", "ERBA", "TRENO"
         ];
 
-        const GRID_SIZE = 6;
-        const WORDS_PER_REWARD = 5;
-
         const App = () => {
+            const [words, setWords] = useState([]);
+            const [loading, setLoading] = useState(true);
             const [currentWord, setCurrentWord] = useState('');
             const [grid, setGrid] = useState([]);
             const [isUppercase, setIsUppercase] = useState(true);
@@ -77,6 +80,31 @@
 
             const speechIntervalRef = useRef(null);
             const audioCtxRef = useRef(null);
+
+            // Caricamento parole con sistema di fallback
+            useEffect(() => {
+                const loadWords = async () => {
+                    try {
+                        const response = await fetch('assets/words.txt');
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const text = await response.text();
+                        const list = text.split(/\r?\n/)
+                            .map(w => w.trim().toUpperCase())
+                            .filter(w => w.length >= 3 && w.length <= GRID_SIZE);
+                        
+                        if (list.length === 0) throw new Error("File vuoto o parole troppo lunghe");
+                        console.log("Parole caricate da file esterno");
+                        setWords(list);
+                    } catch (err) {
+                        console.warn("Utilizzo parole predefinite: " + err.message);
+                        setWords(FALLBACK_WORDS);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                
+                loadWords();
+            }, []);
 
             const playTone = (freq, type = 'sine', duration = 0.1, volume = 0.1) => {
                 try {
@@ -105,10 +133,14 @@
             };
 
             const initGame = useCallback((forceNextCase = null) => {
+                if (words.length === 0) return;
+
                 const nextCase = forceNextCase !== null ? forceNextCase : !isUppercase;
                 setIsUppercase(nextCase);
-                const word = WORDS_LIST[Math.floor(Math.random() * WORDS_LIST.length)];
+                
+                const word = words[Math.floor(Math.random() * words.length)];
                 const displayWord = nextCase ? word.toUpperCase() : word.toLowerCase();
+                
                 setCurrentWord(displayWord);
                 setFound(false);
                 setFoundCount(0);
@@ -130,7 +162,7 @@
                 }
                 setGrid(newGrid);
                 setCorrectCoords(coords);
-            }, [isUppercase]);
+            }, [isUppercase, words]);
 
             const speakWord = useCallback(() => {
                 if (!currentWord || found || !gameStarted || showReward) return;
@@ -208,6 +240,15 @@
                 }
             };
 
+            if (loading) {
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-indigo-900 text-white">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400 mb-4"></div>
+                        <p className="text-xl font-bold">Inizializzazione gioco...</p>
+                    </div>
+                );
+            }
+
             if (!gameStarted) {
                 return (
                     <div className="flex flex-col items-center justify-center min-h-screen bg-indigo-900 p-6 text-center">
@@ -215,8 +256,8 @@
                             <div className="flex justify-center mb-4 text-yellow-400">
                                 <Icon name="Star" size={48} fill="currentColor" />
                             </div>
-                            <h1 className="text-4xl font-black text-indigo-900 mb-4 tracking-tight">CRUCIBATTLE!</h1>
-                            <p className="text-lg text-indigo-600 mb-8 font-medium">Trova il forziere magico!</p>
+                            <h1 className="text-4xl font-black text-indigo-900 mb-4 tracking-tight">SUPER PAROLE</h1>
+                            <p className="text-lg text-indigo-600 mb-8 font-medium">Trova 5 parole per aprire il forziere magico!</p>
                             <button onClick={() => { setGameStarted(true); initGame(true); }} className="w-full bg-yellow-400 text-indigo-900 px-8 py-5 rounded-2xl text-3xl font-black shadow-[0_6px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all">GIOCA!</button>
                         </div>
                     </div>
