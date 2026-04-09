@@ -208,7 +208,7 @@
 
                             // Gestione audio vittoria con fallback
                             const victoryAudio = new Audio(soundPath);
-                            victoryAudio.volume = 0.3;
+                            victoryAudio.volume = 0.1;
                             victoryAudio.play().catch(() => {
                                 // Fallback alla sintesi vocale se il file mp3 fallisce
                                 const winSound = new SpeechSynthesisUtterance("Urrà!");
