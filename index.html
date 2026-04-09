@@ -1,191 +1,343 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CruciBattle</title>
-    <style>
-        :root {
-            --primary: #2563eb;
-            --bg: #f8fafc;
-            --text: #1e293b;
-            --cell: #ffffff;
-        }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .controls { margin-bottom: 20px; display: flex; gap: 10px; }
-        #grid { display: grid; gap: 5px; background: #cbd5e1; padding: 5px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        .cell { width: 40px; height: 40px; background: var(--cell); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; cursor: pointer; user-select: none; border-radius: 4px; transition: all 0.2s; }
-        .cell:hover { background: #e2e8f0; }
-        .cell.selected { background: var(--primary); color: white; }
-        .cell.found { background: #22c55e; color: white; }
-        #target-word { font-size: 1.5rem; font-weight: bold; margin: 20px 0; color: var(--primary); letter-spacing: 2px; }
-        .stats { margin-top: 20px; font-size: 0.9rem; color: #64748b; }
-        button { padding: 8px 16px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 4px; font-weight: bold; }
-    </style>
-</head>
-<body>
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Volume2, Play, RefreshCw, CheckCircle2, Star, Gift } from 'lucide-react';
 
-    <h1>CruciBattle</h1>
+const WORDS_LIST = [
+  "MAMMA", "PAPA", "NONNO", "NONNA", "CANE", "GATTO", "SOLE", "MARE", 
+  "CASA", "PALLA", "LIBRO", "FIORE", "PANE", "LATTE", "MELA", "NIDO",
+  "RANA", "LUNA", "LUCE", "ORSO", "UVA", "VINO", "ERBA", "TRENO"
+];
+
+const GRID_SIZE = 6;
+const WORDS_PER_REWARD = 5;
+
+const App = () => {
+  const [currentWord, setCurrentWord] = useState('');
+  const [grid, setGrid] = useState([]);
+  const [isUppercase, setIsUppercase] = useState(true);
+  const [found, setFound] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [correctCoords, setCorrectCoords] = useState([]);
+  const [feedbackMap, setFeedbackMap] = useState({}); 
+  const [foundCount, setFoundCount] = useState(0);
+  
+  // Progressi per il premio
+  const [totalSolved, setTotalSolved] = useState(0);
+  const [showReward, setShowReward] = useState(false);
+  const [chestState, setChestState] = useState('closed'); // 'closed', 'shaking', 'open'
+
+  const speechIntervalRef = useRef(null);
+  const audioCtxRef = useRef(null);
+
+  // Sintesi sonora per effetti stile gioco
+  const playTone = (freq, type = 'sine', duration = 0.1, volume = 0.1) => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {}
+  };
+
+  const playRewardSound = () => {
+    const tones = [523.25, 659.25, 783.99, 1046.50];
+    tones.forEach((t, i) => {
+      setTimeout(() => playTone(t, 'square', 0.4, 0.05), i * 150);
+    });
+  };
+
+  const initGame = useCallback((forceNextCase = null) => {
+    const nextCase = forceNextCase !== null ? forceNextCase : !isUppercase;
+    setIsUppercase(nextCase);
     
-    <div class="controls">
-        <select id="gridSize">
-            <option value="8">Griglia 8x8</option>
-            <option value="10">Griglia 10x10</option>
-        </select>
-        <button onclick="initGame()">Nuova Partita</button>
-    </div>
-
-    <div id="target-word">CARICAMENTO...</div>
-    <div id="grid"></div>
-
-    <div class="stats">
-        Punteggio salvato in locale: <span id="highScore">0</span> secondi (record)
-    </div>
-
-    <script>
-        const words = ["FISICA", "OTTICA", "PYTHON", "BLENDER", "GUASTALLA", "LINUX", "GALAXY", "CODICE", "ENIGMA", "ELIA"];
-        let currentWord = "";
-        let wordPositions = [];
-        let selectedCells = [];
-        let startTime;
-
-        const letters = "ABCDEFGHILMNOPQRSTUVZ";
-
-        function initGame() {
-            const size = parseInt(document.getElementById('gridSize').value);
-            currentWord = words[Math.floor(Math.random() * words.length)].toUpperCase();
-            document.getElementById('target-word').textContent = `CERCA: ${currentWord}`;
-            
-            // Logica del vecchio generate_puzzle (Python -> JS)
-            const gridData = Array.from({ length: size }, () => 
-                Array.from({ length: size }, () => letters[Math.floor(Math.random() * letters.length)])
-            );
-
-            const isVertical = Math.random() > 0.5;
-            wordPositions = [];
-            
-            if (!isVertical) {
-                const row = Math.floor(Math.random() * size);
-                const startCol = Math.floor(Math.random() * (size - currentWord.length + 1));
-                for (let i = 0; i < currentWord.length; i++) {
-                    gridData[row][startCol + i] = currentWord[i];
-                    wordPositions.push(`${row}-${startCol + i}`);
-                }
-            } else {
-                const col = Math.floor(Math.random() * size);
-                const startRow = Math.floor(Math.random() * (size - currentWord.length + 1));
-                for (let i = 0; i < currentWord.length; i++) {
-                    gridData[startRow + i][col] = currentWord[i];
-                    wordPositions.push(`${startRow + i}-${col}`);
-                }
-            }
-
-            renderGrid(gridData, size);
-            selectedCells = [];
-            startTime = Date.now();
-            updateScoreDisplay();
-        }
-
-        function renderGrid(data, size) {
-            const gridElement = document.getElementById('grid');
-            gridElement.style.gridTemplateColumns = `repeat(${size}, 40px)`;
-            gridElement.innerHTML = '';
-
-            data.forEach((row, rIdx) => {
-                row.forEach((char, cIdx) => {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.textContent = char;
-                    cell.dataset.pos = `${rIdx}-${cIdx}`;
-                    cell.onclick = () => handleCellClick(cell);
-                    gridElement.appendChild(cell);
-                });
-            });
-        }
-
-        function handleCellClick(cell) {
-            const pos = cell.dataset.pos;
-            if (selectedCells.includes(pos)) return;
-
-            cell.classList.add('selected');
-            selectedCells.push(pos);
-
-            // Controllo vittoria
-            const foundAll = wordPositions.every(p => selectedCells.includes(p));
-            if (foundAll && selectedCells.length === wordPositions.length) {
-                const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
-                alert(`Trovata! Tempo: ${timeTaken} secondi`);
-                saveScore(timeTaken);
-                document.querySelectorAll('.cell.selected').forEach(c => c.classList.add('found'));
-                setTimeout(initGame, 2000);
-            } else if (selectedCells.length >= currentWord.length && !foundAll) {
-                // Reset se sbaglia sequenza
-                setTimeout(() => {
-                    document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
-                    selectedCells = [];
-                }, 300);
-            }
-        }
-
-        function saveScore(time) {
-            const lastBest = localStorage.getItem('bestScore') || Infinity;
-            if (time < lastBest) {
-                localStorage.setItem('bestScore', time);
-                updateScoreDisplay();
-            }
-        }
-
-        function updateScoreDisplay() {
-            const best = localStorage.getItem('bestScore') || "Nessuno";
-            document.getElementById('highScore').textContent = best;
-        }
-
-        // 1. Definisci gli oggetti audio (assicurati che i nomi dei file coincidano)
-const soundWin = new Audio('audio/vittoria.mp3');
-const soundClick = new Audio('audio/click.mp3');
-const soundError = new Audio('audio/errore.mp3');
-
-function handleCellClick(cell) {
-    const pos = cell.dataset.pos;
-    if (selectedCells.includes(pos)) return;
-
-    // Riproduci suono al click
-    soundClick.play().catch(e => console.log("Audio bloccato dal browser"));
-
-    cell.classList.add('selected');
-    selectedCells.push(pos);
-
-    const foundAll = wordPositions.every(p => selectedCells.includes(p));
+    const word = WORDS_LIST[Math.floor(Math.random() * WORDS_LIST.length)];
+    const displayWord = nextCase ? word.toUpperCase() : word.toLowerCase();
+    setCurrentWord(displayWord);
+    setFound(false);
+    setFoundCount(0);
+    setFeedbackMap({});
     
-    if (foundAll && selectedCells.length === wordPositions.length) {
-        soundWin.play();
-        const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
-        
-        // Aspettiamo un attimo prima dell'alert così si vede l'effetto grafico
-        setTimeout(() => {
-            alert(`Grande Elia! Parola trovata in ${timeTaken} secondi`);
-            saveScore(timeTaken);
-            document.querySelectorAll('.cell.selected').forEach(c => c.classList.add('found'));
-            setTimeout(initGame, 1000);
-        }, 100);
+    let newGrid = Array(GRID_SIZE).fill(null).map(() => 
+      Array(GRID_SIZE).fill(null).map(() => {
+        const charCode = Math.floor(Math.random() * 26) + (nextCase ? 65 : 97);
+        return String.fromCharCode(charCode);
+      })
+    );
 
-    } else if (selectedCells.length >= currentWord.length && !foundAll) {
-        soundError.play();
-        setTimeout(() => {
-            document.querySelectorAll('.cell').forEach(c => {
-                if (!c.classList.contains('found')) c.classList.remove('selected');
-            });
-            selectedCells = [];
-        }, 300);
+    const row = Math.floor(Math.random() * GRID_SIZE);
+    const startCol = Math.floor(Math.random() * (GRID_SIZE - word.length + 1));
+    const coords = [];
+
+    for (let i = 0; i < word.length; i++) {
+      newGrid[row][startCol + i] = displayWord[i];
+      coords.push(`${row}-${startCol + i}`);
     }
-}
+
+    setGrid(newGrid);
+    setCorrectCoords(coords);
+  }, [isUppercase]);
+
+  const speakWord = useCallback(() => {
+    if (!currentWord || found || !gameStarted || showReward) return;
+    const utterance = new SpeechSynthesisUtterance(currentWord.toLowerCase());
+    utterance.lang = 'it-IT';
+    utterance.rate = 0.7; 
+    window.speechSynthesis.speak(utterance);
+  }, [currentWord, found, gameStarted, showReward]);
+
+  useEffect(() => {
+    if (gameStarted && !found && !showReward) {
+      speakWord();
+      speechIntervalRef.current = setInterval(speakWord, 4000);
+    } else {
+      clearInterval(speechIntervalRef.current);
+    }
+    return () => clearInterval(speechIntervalRef.current);
+  }, [gameStarted, found, speakWord, showReward]);
+
+  const handleCellClick = (r, c) => {
+    if (found || showReward) return;
+    const id = `${r}-${c}`;
+    
+    if (correctCoords.includes(id)) {
+      if (feedbackMap[id] !== 'correct') {
+        playTone(660, 'sine', 0.15);
+        const newFeedback = { ...feedbackMap, [id]: 'correct' };
+        setFeedbackMap(newFeedback);
+        const newCount = foundCount + 1;
+        setFoundCount(newCount);
+
+        if (newCount === correctCoords.length) {
+          setFound(true);
+          const nextTotal = totalSolved + 1;
+          setTotalSolved(nextTotal);
+
+          // Suono vittoria standard
+          setTimeout(() => playTone(523, 'sine', 0.2), 100);
+          setTimeout(() => playTone(783, 'sine', 0.4), 300);
+          
+          const winSound = new SpeechSynthesisUtterance("Urrà!");
+          winSound.lang = 'it-IT';
+          winSound.pitch = 1.3;
+          window.speechSynthesis.speak(winSound);
+          
+          // Dopo 3 secondi, controlla se mostrare il premio o passare alla prossima
+          setTimeout(() => {
+            if (nextTotal % WORDS_PER_REWARD === 0) {
+              setShowReward(true);
+              setChestState('closed');
+            } else {
+              initGame();
+            }
+          }, 3000);
+        }
+      }
+    } else {
+      playTone(150, 'triangle', 0.3);
+      setFeedbackMap(prev => ({ ...prev, [id]: 'wrong' }));
+      setTimeout(() => {
+        setFeedbackMap(prev => {
+          const next = { ...prev };
+          if (next[id] === 'wrong') delete next[id];
+          return next;
+        });
+      }, 600);
+    }
+  };
+
+  const handleOpenChest = () => {
+    if (chestState === 'closed') {
+      setChestState('shaking');
+      playTone(200, 'square', 0.5);
+      setTimeout(() => {
+        setChestState('open');
+        playRewardSound();
+      }, 1000);
+    } else if (chestState === 'open') {
+      setShowReward(false);
+      setChestState('closed');
+      initGame();
+    }
+  };
+
+  if (!gameStarted) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-indigo-900 p-6 text-center">
+        <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm border-b-8 border-indigo-200">
+          <div className="flex justify-center mb-4">
+            <div className="bg-yellow-400 p-4 rounded-full shadow-lg">
+              <Star size={48} className="text-white fill-current" />
+            </div>
+          </div>
+          <h1 className="text-4xl font-black text-indigo-900 mb-4 tracking-tight">SUPER PAROLE</h1>
+          <p className="text-lg text-indigo-600 mb-8 font-medium">
+            Trova 5 parole per aprire il forziere magico!
+          </p>
+          <button 
+            onClick={() => { setGameStarted(true); initGame(true); }}
+            className="w-full bg-yellow-400 hover:bg-yellow-500 text-indigo-900 px-8 py-5 rounded-2xl text-3xl font-black shadow-[0_6px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all"
+          >
+            GIOCA!
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center min-h-screen bg-indigo-50 p-4 font-sans select-none touch-none">
+      
+      {/* Overlay Premio (Stile Brawl Stars) */}
+      {showReward && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-indigo-900/95 p-6 animate-in fade-in duration-500">
+          <div className="text-yellow-400 text-4xl font-black mb-12 tracking-widest animate-bounce">PREMIO SPECIALE!</div>
+          
+          <div 
+            onClick={handleOpenChest}
+            className={`relative cursor-pointer transition-transform ${chestState === 'shaking' ? 'animate-shake' : 'hover:scale-105 active:scale-95'}`}
+          >
+            {chestState !== 'open' ? (
+              <div className="relative">
+                <div className="absolute -inset-8 bg-yellow-400/20 rounded-full blur-3xl animate-pulse"></div>
+                <div className="bg-orange-600 w-48 h-40 rounded-xl border-t-8 border-orange-400 border-x-4 shadow-2xl flex items-center justify-center relative overflow-hidden">
+                  <div className="absolute top-1/2 w-full h-4 bg-orange-800"></div>
+                  <div className="w-12 h-12 bg-yellow-400 rounded-lg border-4 border-orange-800 z-10"></div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center animate-in zoom-in duration-300">
+                <div className="relative">
+                   <div className="absolute -inset-20 bg-yellow-400/40 rounded-full blur-3xl animate-ping"></div>
+                   <div className="flex gap-4">
+                      <Star size={80} className="text-yellow-400 fill-current animate-bounce" />
+                      <Star size={100} className="text-yellow-400 fill-current animate-bounce delay-75" />
+                      <Star size={80} className="text-yellow-400 fill-current animate-bounce delay-150" />
+                   </div>
+                </div>
+                <div className="text-white text-3xl font-black mt-12 bg-white/10 px-8 py-4 rounded-full">TOCCA PER CONTINUARE</div>
+              </div>
+            )}
+          </div>
+          
+          {chestState === 'closed' && (
+            <div className="text-white/60 mt-12 font-bold text-xl animate-pulse">TOCCA IL FORZIERE!</div>
+          )}
+        </div>
+      )}
+
+      {/* Header Progressi */}
+      <div className="w-full max-w-md flex items-center justify-between mb-4 px-2">
+        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl shadow-sm border-b-4 border-indigo-100">
+          <Star size={20} className="text-yellow-500 fill-current" />
+          <span className="font-black text-indigo-900 text-xl">{totalSolved}</span>
+        </div>
+        <div className="flex-1 mx-4 bg-indigo-200 h-6 rounded-full overflow-hidden border-2 border-white shadow-inner relative">
+          <div 
+            className="bg-yellow-400 h-full transition-all duration-1000 ease-out"
+            style={{ width: `${(totalSolved % WORDS_PER_REWARD) * (100/WORDS_PER_REWARD)}%` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-indigo-900 uppercase tracking-tighter">
+            Mancano {WORDS_PER_REWARD - (totalSolved % WORDS_PER_REWARD)} parole al premio
+          </div>
+        </div>
+        <div className="bg-white p-2 rounded-2xl shadow-sm border-b-4 border-indigo-100">
+           <Gift size={24} className={totalSolved % WORDS_PER_REWARD === 0 && totalSolved !== 0 ? "text-green-500 animate-bounce" : "text-indigo-300"} />
+        </div>
+      </div>
+
+      {/* Parola Target */}
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-lg p-6 mb-6 text-center border-b-8 border-indigo-200">
+        <div className="text-indigo-400 uppercase text-xs font-black tracking-widest mb-1">TROVA QUESTA:</div>
+        <div className={`text-6xl font-black tracking-tighter ${found ? 'text-green-500 scale-110' : 'text-indigo-900'} transition-all`}>
+          {currentWord}
+        </div>
+      </div>
+
+      {/* Griglia */}
+      <div 
+        className="grid gap-3 p-4 bg-white rounded-3xl shadow-2xl border-4 border-white"
+        style={{ 
+          gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
+          width: '100%',
+          maxWidth: '450px',
+          aspectRatio: '1/1'
+        }}
+      >
+        {grid.map((row, r) => (
+          row.map((char, c) => {
+            const id = `${r}-${c}`;
+            const status = feedbackMap[id];
+            
+            let cellClass = "bg-indigo-50 text-indigo-800 border-indigo-100";
+            if (status === 'correct') cellClass = "bg-green-500 text-white shadow-inner scale-95 border-green-600";
+            if (status === 'wrong') cellClass = "bg-red-500 text-white animate-shake border-red-600";
+
+            return (
+              <button
+                key={id}
+                onClick={() => handleCellClick(r, c)}
+                className={`
+                  flex items-center justify-center text-4xl font-black rounded-xl
+                  transition-all duration-200 aspect-square border-b-4
+                  ${cellClass}
+                  ${!status ? 'active:bg-indigo-200 active:translate-y-1' : ''}
+                `}
+              >
+                {char}
+              </button>
+            );
+          })
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="mt-8 h-16 flex items-center justify-center">
+        {found ? (
+          <div className="flex items-center gap-3 text-green-600 font-black text-3xl animate-bounce">
+            <CheckCircle2 size={40} strokeWidth={3} /> BRAVISSIMO!
+          </div>
+        ) : (
+          <button 
+            onClick={speakWord}
+            className="flex items-center gap-2 bg-white px-6 py-3 rounded-full shadow-md text-indigo-600 font-bold active:scale-95"
+          >
+            <Volume2 size={24} /> Ascolta ancora
+          </button>
+        )}
+      </div>
+
+      <button 
+        onClick={() => initGame(isUppercase)}
+        className="mt-4 text-indigo-300 font-bold p-2 text-xs uppercase tracking-widest"
+      >
+        <RefreshCw size={14} className="inline mr-1" /> Salta parola
+      </button>
+
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: rotate(0deg) translateX(0); }
+          25% { transform: rotate(-5deg) translateX(-5px); }
+          75% { transform: rotate(5deg) translateX(5px); }
+        }
+        .animate-shake { animation: shake 0.15s ease-in-out infinite; }
         
-
-
-
-
+        .animate-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
-        initGame();
-    </script>
-</body>
-</html>
+        .zoom-in { animation: zoomIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes zoomIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+      `}</style>
+    </div>
+  );
+};
+
+export default App;
