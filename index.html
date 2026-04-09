@@ -198,12 +198,16 @@
                             const nextTotal = totalSolved + 1;
                             setTotalSolved(nextTotal);
                             
-                            // Effetti sonori procedurali
+                            // Effetti sonori procedurali sempre presenti
                             setTimeout(() => playTone(523, 'sine', 0.2), 100);
                             setTimeout(() => playTone(783, 'sine', 0.4), 300);
 
+                            // Controllo se è la quinta parola (premio speciale)
+                            const isSpecialVictory = nextTotal % WORDS_PER_REWARD === 0;
+                            const soundPath = isSpecialVictory ? 'audio/super_victory.mp3' : 'audio/victory.mp3';
+
                             // Gestione audio vittoria con fallback
-                            const victoryAudio = new Audio('audio/victory.mp3');
+                            const victoryAudio = new Audio(soundPath);
                             victoryAudio.play().catch(() => {
                                 // Fallback alla sintesi vocale se il file mp3 fallisce
                                 const winSound = new SpeechSynthesisUtterance("Urrà!");
