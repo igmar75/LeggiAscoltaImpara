@@ -106,7 +106,7 @@
                 loadWords();
             }, []);
 
-            const playTone = (freq, type = 'sine', duration = 0.1, volume = 0.1) => {
+            const playTone = (freq, type = 'sine', duration = 0.1, volume = 0.5) => {
                 try {
                     if (!audioCtxRef.current) {
                         audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
