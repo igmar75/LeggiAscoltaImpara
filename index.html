@@ -54,10 +54,10 @@
             return <i data-lucide={name} ref={iconRef} className={className} style={{ width: size, height: size, fill: fill }}></i>;
         };
 
-        const GRID_SIZE = 8; // Matrice 8x8
+        const GRID_SIZE = 8; 
         const WORDS_PER_REWARD = 5;
 
-        // Parole di fallback se il file esterno non è disponibile
+        // Parole di fallback
         const FALLBACK_WORDS = [
             "MAMMA", "PAPA", "NONNO", "NONNA", "CANE", "GATTO", "SOLE", "MARE", 
             "CASA", "PALLA", "LIBRO", "FIORE", "PANE", "LATTE", "MELA", "NIDO",
@@ -82,22 +82,34 @@
 
             const speechIntervalRef = useRef(null);
             const audioCtxRef = useRef(null);
+            const bgMusicRef = useRef(null);
+
+            // Inizializzazione musica di sottofondo
+            useEffect(() => {
+                bgMusicRef.current = new Audio('audio/background_music.mp3');
+                bgMusicRef.current.loop = true;
+                bgMusicRef.current.volume = 0.3; // Sottofondo non troppo invasivo
+
+                return () => {
+                    if (bgMusicRef.current) {
+                        bgMusicRef.current.pause();
+                        bgMusicRef.current = null;
+                    }
+                };
+            }, []);
 
             // Caricamento parole
             useEffect(() => {
                 const loadWords = async () => {
                     try {
                         const response = await fetch('assets/words.txt');
-                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        if (!response.ok) throw new Error("File non trovato");
                         const text = await response.text();
                         const list = text.split(/\r?\n/)
                             .map(w => w.trim().toUpperCase())
                             .filter(w => w.length >= 3 && w.length <= GRID_SIZE);
-                        
-                        if (list.length === 0) throw new Error("File vuoto");
-                        setWords(list);
+                        setWords(list.length > 0 ? list : FALLBACK_WORDS);
                     } catch (err) {
-                        console.warn("Utilizzo fallback: " + err.message);
                         setWords(FALLBACK_WORDS);
                     } finally {
                         setLoading(false);
@@ -135,13 +147,10 @@
 
             const initGame = useCallback((forceNextCase = null) => {
                 if (words.length === 0) return;
-
                 const nextCase = forceNextCase !== null ? forceNextCase : !isUppercase;
                 setIsUppercase(nextCase);
-                
                 const word = words[Math.floor(Math.random() * words.length)];
                 const displayWord = nextCase ? word.toUpperCase() : word.toLowerCase();
-                
                 setCurrentWord(displayWord);
                 setFound(false);
                 setFoundCount(0);
@@ -183,6 +192,15 @@
                 return () => clearInterval(speechIntervalRef.current);
             }, [gameStarted, found, speakWord, showReward]);
 
+            const handleStartGame = () => {
+                setGameStarted(true);
+                initGame(true);
+                // Avvia la musica di sottofondo all'interazione dell'utente
+                if (bgMusicRef.current) {
+                    bgMusicRef.current.play().catch(e => console.log("Audio play blocked", e));
+                }
+            };
+
             const handleCellClick = (r, c) => {
                 if (found || showReward) return;
                 const id = `${r}-${c}`;
@@ -198,19 +216,14 @@
                             const nextTotal = totalSolved + 1;
                             setTotalSolved(nextTotal);
                             
-                            // Effetti sonori procedurali sempre presenti
                             setTimeout(() => playTone(523, 'sine', 0.2), 100);
                             setTimeout(() => playTone(783, 'sine', 0.4), 300);
 
-                            // Controllo se è la quinta parola (premio speciale)
                             const isSpecialVictory = nextTotal % WORDS_PER_REWARD === 0;
                             const soundPath = isSpecialVictory ? 'audio/super_victory.mp3' : 'audio/victory.mp3';
 
-                            // Gestione audio vittoria con fallback
                             const victoryAudio = new Audio(soundPath);
-                            victoryAudio.volume = 0.1;
                             victoryAudio.play().catch(() => {
-                                // Fallback alla sintesi vocale se il file mp3 fallisce
                                 const winSound = new SpeechSynthesisUtterance("Urrà!");
                                 winSound.lang = 'it-IT';
                                 winSound.pitch = 1.3;
@@ -221,6 +234,8 @@
                                 if (nextTotal % WORDS_PER_REWARD === 0) {
                                     setShowReward(true);
                                     setChestState('closed');
+                                    // Abbassa il volume durante il premio
+                                    if (bgMusicRef.current) bgMusicRef.current.volume = 0.1;
                                 } else {
                                     initGame();
                                 }
@@ -251,15 +266,17 @@
                 } else if (chestState === 'open') {
                     setShowReward(false);
                     setChestState('closed');
+                    // Ripristina volume musica
+                    if (bgMusicRef.current) bgMusicRef.current.volume = 0.3;
                     initGame();
                 }
             };
 
             if (loading) {
                 return (
-                    <div className="flex flex-col items-center justify-center min-h-screen bg-indigo-900 text-white">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400 mb-4"></div>
-                        <p className="text-xl font-bold uppercase tracking-widest">Caricamento...</p>
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-indigo-900 text-white font-black">
+                        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-yellow-400 mb-6"></div>
+                        <p className="text-2xl uppercase tracking-[0.2em]">Caricamento...</p>
                     </div>
                 );
             }
@@ -281,7 +298,7 @@
                             </div>
                             <h1 className="text-4xl font-black text-indigo-900 mb-2 tracking-tight uppercase">CRUCIBATTLE!</h1>
                             <p className="text-lg text-indigo-600 mb-8 font-medium italic">Il gioco delle super parole</p>
-                            <button onClick={() => { setGameStarted(true); initGame(true); }} className="w-full bg-yellow-400 text-indigo-900 px-8 py-5 rounded-2xl text-3xl font-black shadow-[0_6px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all tracking-tighter uppercase">Gioca!</button>
+                            <button onClick={handleStartGame} className="w-full bg-yellow-400 text-indigo-900 px-8 py-5 rounded-2xl text-3xl font-black shadow-[0_6px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all tracking-tighter uppercase">Gioca!</button>
                         </div>
                     </div>
                 );
