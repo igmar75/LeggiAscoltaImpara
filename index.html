@@ -38,6 +38,18 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // ==========================================
+        //         CONFIGURAZIONE VOLUMI AUDIO
+        // ==========================================
+        const AUDIO_CONFIG = {
+            bgMusicVolume: 0.3,       // Volume normale musica di sottofondo (0.0 - 1.0)
+            bgMusicVolumeDucked: 0.1, // Volume musica ridotto durante l'apertura del premio (0.0 - 1.0)
+            toneVolume: 0.4,          // Volume dei suoni dei tasti (corretto/errore) e del forziere (0.0 - 1.0)
+            rewardToneVolume: 0.05,   // Volume della melodia quando si apre il forziere (0.0 - 1.0)
+            speechVolume: 1.0,        // Volume della voce che legge le parole (0.0 - 1.0)
+            speechRate: 0.7           // Velocità della voce che legge le parole (più basso = più lento)
+        };
+
         const { useState, useEffect, useCallback, useRef } = React;
         
         // Helper per le icone Lucide
@@ -88,7 +100,7 @@
             useEffect(() => {
                 bgMusicRef.current = new Audio('audio/background_music.mp3');
                 bgMusicRef.current.loop = true;
-                bgMusicRef.current.volume = 0.3; // Sottofondo non troppo invasivo
+                bgMusicRef.current.volume = AUDIO_CONFIG.bgMusicVolume;
 
                 return () => {
                     if (bgMusicRef.current) {
@@ -118,7 +130,7 @@
                 loadWords();
             }, []);
 
-            const playTone = (freq, type = 'sine', duration = 0.1, volume = 0.3) => {
+            const playTone = (freq, type = 'sine', duration = 0.1, volume = AUDIO_CONFIG.toneVolume) => {
                 try {
                     if (!audioCtxRef.current) {
                         audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -141,7 +153,7 @@
             const playRewardSound = () => {
                 const tones = [523.25, 659.25, 783.99, 1046.50];
                 tones.forEach((t, i) => {
-                    setTimeout(() => playTone(t, 'square', 0.4, 0.05), i * 150);
+                    setTimeout(() => playTone(t, 'square', 0.4, AUDIO_CONFIG.rewardToneVolume), i * 150);
                 });
             };
 
@@ -178,7 +190,8 @@
                 if (!currentWord || found || !gameStarted || showReward) return;
                 const utterance = new SpeechSynthesisUtterance(currentWord.toLowerCase());
                 utterance.lang = 'it-IT';
-                utterance.rate = 0.7; 
+                utterance.rate = AUDIO_CONFIG.speechRate; 
+                utterance.volume = AUDIO_CONFIG.speechVolume;
                 window.speechSynthesis.speak(utterance);
             }, [currentWord, found, gameStarted, showReward]);
 
@@ -206,7 +219,7 @@
                 const id = `${r}-${c}`;
                 if (correctCoords.includes(id)) {
                     if (feedbackMap[id] !== 'correct') {
-                        playTone(660, 'sine', 0.15);
+                        playTone(660, 'sine', 0.15, AUDIO_CONFIG.toneVolume);
                         const newFeedback = { ...feedbackMap, [id]: 'correct' };
                         setFeedbackMap(newFeedback);
                         const newCount = foundCount + 1;
@@ -216,8 +229,8 @@
                             const nextTotal = totalSolved + 1;
                             setTotalSolved(nextTotal);
                             
-                            setTimeout(() => playTone(523, 'sine', 0.2), 100);
-                            setTimeout(() => playTone(783, 'sine', 0.4), 300);
+                            setTimeout(() => playTone(523, 'sine', 0.2, AUDIO_CONFIG.toneVolume), 100);
+                            setTimeout(() => playTone(783, 'sine', 0.4, AUDIO_CONFIG.toneVolume), 300);
 
                             const isSpecialVictory = nextTotal % WORDS_PER_REWARD === 0;
                             const soundPath = isSpecialVictory ? 'audio/super_victory.mp3' : 'audio/victory.mp3';
@@ -227,6 +240,7 @@
                                 const winSound = new SpeechSynthesisUtterance("Urrà!");
                                 winSound.lang = 'it-IT';
                                 winSound.pitch = 1.3;
+                                winSound.volume = AUDIO_CONFIG.speechVolume;
                                 window.speechSynthesis.speak(winSound);
                             });
 
@@ -235,7 +249,7 @@
                                     setShowReward(true);
                                     setChestState('closed');
                                     // Abbassa il volume durante il premio
-                                    if (bgMusicRef.current) bgMusicRef.current.volume = 0.1;
+                                    if (bgMusicRef.current) bgMusicRef.current.volume = AUDIO_CONFIG.bgMusicVolumeDucked;
                                 } else {
                                     initGame();
                                 }
@@ -243,7 +257,7 @@
                         }
                     }
                 } else {
-                    playTone(150, 'triangle', 0.3);
+                    playTone(150, 'triangle', 0.3, AUDIO_CONFIG.toneVolume);
                     setFeedbackMap(prev => ({ ...prev, [id]: 'wrong' }));
                     setTimeout(() => {
                         setFeedbackMap(prev => {
@@ -258,7 +272,7 @@
             const handleOpenChest = () => {
                 if (chestState === 'closed') {
                     setChestState('shaking');
-                    playTone(200, 'square', 0.5);
+                    playTone(200, 'square', 0.5, AUDIO_CONFIG.toneVolume);
                     setTimeout(() => {
                         setChestState('open');
                         playRewardSound();
@@ -267,7 +281,7 @@
                     setShowReward(false);
                     setChestState('closed');
                     // Ripristina volume musica
-                    if (bgMusicRef.current) bgMusicRef.current.volume = 0.3;
+                    if (bgMusicRef.current) bgMusicRef.current.volume = AUDIO_CONFIG.bgMusicVolume;
                     initGame();
                 }
             };
