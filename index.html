@@ -37,9 +37,16 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-presets="env,react">
-        /** @jsxRuntime classic */
-        
+    <!-- Configurazione sicura di Babel per forzare il runtime classico senza errori -->
+    <script>
+        Babel.registerPreset('react-classic', {
+            presets: [
+                [Babel.availablePresets.react, { runtime: 'classic' }]
+            ]
+        });
+    </script>
+
+    <script type="text/babel" data-presets="env,react-classic">
         // ==========================================
         //         CONFIGURAZIONE VOLUMI AUDIO
         // ==========================================
