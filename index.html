@@ -37,22 +37,45 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
+    <script type="text/babel" data-presets="env,react">
         /** @jsxRuntime classic */
+        
+        // ==========================================
+        //         CONFIGURAZIONE VOLUMI AUDIO
+        // ==========================================
+        const AUDIO_CONFIG = {
+            bgMusicVolume: 0.3,       // Volume normale musica di sottofondo (0.0 - 1.0)
+            bgMusicVolumeDucked: 0.1, // Volume musica ridotto durante la schermata del forziere (0.0 - 1.0)
+            toneVolume: 0.4,          // Volume dei suoni dei tasti e della scossa del forziere (0.0 - 1.0)
+            rewardToneVolume: 0.05,   // Volume della melodia iniziale del forziere (0.0 - 1.0)
+            speechVolume: 1.0,        // Volume della voce che legge le parole (0.0 - 1.0)
+            speechRate: 0.7,          // Velocità della voce che legge le parole (più basso = più lento)
+            victoryVolume: 0.5,       // Volume del jingle MP3 di vittoria (0.0 - 1.0)
+            videoVolume: 0.8          // Volume del video premio (0.0 - 1.0)
+        };
+
+        // ==========================================
+        //         ELENCO DEI VIDEO PREMIO
+        // ==========================================
+        const REWARD_VIDEOS = [
+            "premio1.mp4",
+            "premio2.mp4",
+            "premio3.mp4"
+        ];
+
         const { useState, useEffect, useCallback, useRef } = React;
         
-        // Helper per le icone Lucide
+        // Helper per le icone Lucide in React tramite sostituzione nativa DOM
         const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
             const iconRef = useRef(null);
             useEffect(() => {
-                if (iconRef.current && lucide[name]) {
+                if (iconRef.current) {
                     lucide.createIcons({
-                        targets: [iconRef.current],
-                        icons: { [name]: lucide[name] }
+                        root: iconRef.current.parentNode
                     });
                 }
             }, [name]);
-            return <i data-lucide={name} ref={iconRef} className={className} style={{ width: size, height: size, fill: fill }}></i>;
+            return <i data-lucide={name} ref={iconRef} className={className} style={{ width: `${size}px`, height: `${size}px`, fill: fill }}></i>;
         };
 
         const GRID_SIZE = 8; 
@@ -63,7 +86,7 @@
             "MAMMA", "PAPA", "NONNO", "NONNA", "CANE", "GATTO", "SOLE", "MARE", 
             "CASA", "PALLA", "LIBRO", "FIORE", "PANE", "LATTE", "MELA", "NIDO",
             "RANA", "LUNA", "LUCE", "ORSO", "UVA", "VINO", "ERBA", "TRENO",
-            "BISCUTTO", "FRUTTA", "SCUOLA", "GIOCO"
+            "FRUTTA", "SCUOLA", "GIOCO"
         ];
 
         const App = () => {
@@ -79,11 +102,13 @@
             const [foundCount, setFoundCount] = useState(0);
             const [totalSolved, setTotalSolved] = useState(0);
             const [showReward, setShowReward] = useState(false);
-            const [chestState, setChestState] = useState('closed');
+            const [chestState, setChestState] = useState('closed'); // 'closed', 'shaking', 'open'
+            const [selectedVideo, setSelectedVideo] = useState('');
 
             const speechIntervalRef = useRef(null);
             const audioCtxRef = useRef(null);
             const bgMusicRef = useRef(null);
+            const videoRef = useRef(null);
 
             // Inizializzazione musica di sottofondo
             useEffect(() => {
@@ -118,6 +143,13 @@
                 };
                 loadWords();
             }, []);
+
+            // Regolazione dinamica del volume del video
+            useEffect(() => {
+                if (videoRef.current && showReward && chestState === 'open') {
+                    videoRef.current.volume = AUDIO_CONFIG.videoVolume;
+                }
+            }, [showReward, chestState, selectedVideo]);
 
             const playTone = (freq, type = 'sine', duration = 0.1, volume = AUDIO_CONFIG.toneVolume) => {
                 try {
@@ -197,7 +229,6 @@
             const handleStartGame = () => {
                 setGameStarted(true);
                 initGame(true);
-                // Avvia la musica di sottofondo all'interazione dell'utente
                 if (bgMusicRef.current) {
                     bgMusicRef.current.play().catch(e => console.log("Audio play blocked", e));
                 }
@@ -225,7 +256,7 @@
                             const soundPath = isSpecialVictory ? 'audio/super_victory.mp3' : 'audio/victory.mp3';
 
                             const victoryAudio = new Audio(soundPath);
-                            victoryAudio.volume = AUDIO_CONFIG.victoryVolume; // Imposta il volume configurato!
+                            victoryAudio.volume = AUDIO_CONFIG.victoryVolume;
                             victoryAudio.play().catch(() => {
                                 const winSound = new SpeechSynthesisUtterance("Urrà!");
                                 winSound.lang = 'it-IT';
@@ -236,9 +267,12 @@
 
                             setTimeout(() => {
                                 if (nextTotal % WORDS_PER_REWARD === 0) {
+                                    if (REWARD_VIDEOS.length > 0) {
+                                        const randomVid = REWARD_VIDEOS[Math.floor(Math.random() * REWARD_VIDEOS.length)];
+                                        setSelectedVideo(`assets/video/${randomVid}`);
+                                    }
                                     setShowReward(true);
                                     setChestState('closed');
-                                    // Abbassa il volume durante il premio
                                     if (bgMusicRef.current) bgMusicRef.current.volume = AUDIO_CONFIG.bgMusicVolumeDucked;
                                 } else {
                                     initGame();
@@ -266,14 +300,17 @@
                     setTimeout(() => {
                         setChestState('open');
                         playRewardSound();
+                        if (bgMusicRef.current) bgMusicRef.current.volume = 0;
                     }, 1000);
-                } else if (chestState === 'open') {
-                    setShowReward(false);
-                    setChestState('closed');
-                    // Ripristina volume musica
-                    if (bgMusicRef.current) bgMusicRef.current.volume = AUDIO_CONFIG.bgMusicVolume;
-                    initGame();
                 }
+            };
+
+            const handleCloseReward = () => {
+                setShowReward(false);
+                setChestState('closed');
+                setSelectedVideo('');
+                if (bgMusicRef.current) bgMusicRef.current.volume = AUDIO_CONFIG.bgMusicVolume;
+                initGame();
             };
 
             if (loading) {
@@ -298,7 +335,7 @@
                     >
                         <div className="bg-white/95 backdrop-blur-sm p-8 rounded-3xl shadow-2xl max-w-sm border-b-8 border-indigo-200">
                             <div className="flex justify-center mb-4 text-yellow-400">
-                                <Icon name="Star" size={48} fill="currentColor" />
+                                <Icon name="star" size={48} fill="currentColor" />
                             </div>
                             <h1 className="text-4xl font-black text-indigo-900 mb-2 tracking-tight uppercase">CRUCIBATTLE!</h1>
                             <p className="text-lg text-indigo-600 mb-8 font-medium italic">Il gioco delle super parole</p>
@@ -318,44 +355,64 @@
                         backgroundRepeat: 'no-repeat'
                     }}
                 >
+                    {/* Overlay Premio con Video */}
                     {showReward && (
-                        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-indigo-900/95 p-6 animate-in">
-                            <div className="text-yellow-400 text-4xl font-black mb-12 tracking-widest animate-bounce uppercase">PREMIO SPECIALE!</div>
-                            <div onClick={handleOpenChest} className={`relative cursor-pointer transition-transform ${chestState === 'shaking' ? 'animate-shake' : 'hover:scale-105 active:scale-95'}`}>
-                                {chestState !== 'open' ? (
-                                    <div className="relative">
+                        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-indigo-900/95 p-4 animate-in">
+                            {chestState !== 'open' ? (
+                                <React.Fragment>
+                                    <div className="text-yellow-400 text-4xl font-black mb-12 tracking-widest animate-bounce uppercase">PREMIO SPECIALE!</div>
+                                    <div onClick={handleOpenChest} className={`relative cursor-pointer transition-transform ${chestState === 'shaking' ? 'animate-shake' : 'hover:scale-105 active:scale-95'}`}>
                                         <div className="absolute -inset-8 bg-yellow-400/20 rounded-full blur-3xl animate-pulse"></div>
                                         <div className="bg-orange-600 w-48 h-40 rounded-xl border-t-8 border-orange-400 border-x-4 shadow-2xl flex items-center justify-center relative overflow-hidden">
                                             <div className="absolute top-1/2 w-full h-4 bg-orange-800"></div>
                                             <div className="w-12 h-12 bg-yellow-400 rounded-lg border-4 border-orange-800 z-10"></div>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="flex flex-col items-center zoom-in">
-                                        <div className="relative flex gap-4 text-yellow-400">
-                                            <Icon name="Star" size={80} fill="currentColor" className="animate-bounce" />
-                                            <Icon name="Star" size={100} fill="currentColor" className="animate-bounce [animation-delay:0.1s]" />
-                                            <Icon name="Star" size={80} fill="currentColor" className="animate-bounce [animation-delay:0.2s]" />
+                                    <div className="text-white/60 mt-12 font-bold text-xl animate-pulse uppercase tracking-widest">Tocca il forziere!</div>
+                                </React.Fragment>
+                            ) : (
+                                <div className="w-full max-w-lg flex flex-col items-center justify-center zoom-in">
+                                    {selectedVideo ? (
+                                        <div className="w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-yellow-400 aspect-video relative">
+                                            <video 
+                                                ref={videoRef}
+                                                src={selectedVideo}
+                                                autoPlay
+                                                playsInline
+                                                controls={false}
+                                                onEnded={handleCloseReward}
+                                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                            />
                                         </div>
-                                        <div className="text-white text-3xl font-black mt-12 bg-white/10 px-8 py-4 rounded-full uppercase">Avanti!</div>
-                                    </div>
-                                )}
-                            </div>
-                            {chestState === 'closed' && <div className="text-white/60 mt-12 font-bold text-xl animate-pulse uppercase tracking-widest">Tocca il forziere!</div>}
+                                    ) : (
+                                        <div className="text-yellow-400 flex gap-4">
+                                            <Icon name="star" size={80} fill="currentColor" className="animate-bounce" />
+                                            <Icon name="star" size={100} fill="currentColor" className="animate-bounce [animation-delay:0.1s]" />
+                                            <Icon name="star" size={80} fill="currentColor" className="animate-bounce [animation-delay:0.2s]" />
+                                        </div>
+                                    )}
+                                    <button 
+                                        onClick={handleCloseReward}
+                                        className="mt-8 bg-yellow-400 text-indigo-900 px-10 py-4 rounded-2xl text-2xl font-black shadow-[0_5px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all uppercase"
+                                    >
+                                        Avanti!
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {/* Progress Bar */}
                     <div className="w-full max-w-md flex items-center justify-between mb-2 px-2 bg-white/30 backdrop-blur-sm rounded-2xl p-2 border border-white/20">
                         <div className="flex items-center gap-1 bg-white px-3 py-1 rounded-xl shadow-sm border-b-2 border-indigo-100">
-                            <Icon name="Star" size={18} className="text-yellow-500" fill="currentColor" />
+                            <Icon name="star" size={18} className="text-yellow-500" fill="currentColor" />
                             <span className="font-black text-indigo-900 text-lg">{totalSolved}</span>
                         </div>
                         <div className="flex-1 mx-3 bg-indigo-200/50 h-5 rounded-full overflow-hidden border-2 border-white shadow-inner relative">
                             <div className="bg-yellow-400 h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(250,204,21,0.5)]" style={{ width: `${(totalSolved % WORDS_PER_REWARD) * (100/WORDS_PER_REWARD)}%` }} />
                         </div>
                         <div className="bg-white p-1 rounded-xl shadow-sm border-b-2 border-indigo-100 text-indigo-300">
-                            <Icon name="Gift" size={20} className={totalSolved % WORDS_PER_REWARD === 0 && totalSolved !== 0 ? "text-green-500 animate-bounce" : ""} />
+                            <Icon name="gift" size={20} className={totalSolved % WORDS_PER_REWARD === 0 && totalSolved !== 0 ? "text-green-500 animate-bounce" : ""} />
                         </div>
                     </div>
 
@@ -366,15 +423,7 @@
                     </div>
 
                     {/* 8x8 Grid */}
-                    <div 
-                        className="grid gap-1.5 p-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-4 border-white" 
-                        style={{ 
-                            gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`, 
-                            width: '100%', 
-                            maxWidth: '450px', 
-                            aspectRatio: '1/1' 
-                        }}
-                    >
+                    <div id="grid-container" className="grid gap-1.5 p-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-4 border-white" style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`, width: '100%', maxWidth: '450px', aspectRatio: '1/1' }}>
                         {grid.map((row, r) => row.map((char, c) => {
                             const id = `${r}-${c}`;
                             const status = feedbackMap[id];
@@ -382,13 +431,7 @@
                             if (status === 'correct') cellClass = "bg-green-500 text-white shadow-inner scale-95 border-green-600";
                             if (status === 'wrong') cellClass = "bg-red-500 text-white animate-shake border-red-600";
                             return (
-                                <button 
-                                    key={id} 
-                                    onClick={() => handleCellClick(r, c)} 
-                                    className={`flex items-center justify-center text-2xl sm:text-3xl font-black rounded-lg transition-all duration-200 aspect-square border-b-2 ${cellClass} ${!status ? 'hover:bg-indigo-50 active:bg-indigo-200' : ''}`}
-                                >
-                                    {char}
-                                </button>
+                                <button key={id} onClick={() => handleCellClick(r, c)} className={`flex items-center justify-center text-2xl sm:text-3xl font-black rounded-lg transition-all duration-200 aspect-square border-b-2 ${cellClass} ${!status ? 'hover:bg-indigo-50 active:bg-indigo-200' : ''}`}>{char}</button>
                             );
                         }))}
                     </div>
@@ -397,16 +440,14 @@
                     <div className="mt-4 h-12 flex items-center justify-center">
                         {found ? (
                             <div className="flex items-center gap-2 text-green-600 bg-white/90 backdrop-blur-md px-6 py-2 rounded-full font-black text-2xl shadow-lg border-b-4 border-green-200 animate-bounce">
-                                <Icon name="CheckCircle2" size={32} className="stroke-[3]" /> BRAVO!
+                                <Icon name="check-circle-2" size={32} className="stroke-[3]" /> BRAVO!
                             </div>
                         ) : (
                             <button onClick={speakWord} className="flex items-center gap-2 bg-yellow-400 px-6 py-3 rounded-full shadow-lg text-indigo-900 font-black active:scale-95 text-sm uppercase tracking-wider border-b-4 border-yellow-600 transition-all">
-                                <Icon name="Volume2" size={20} fill="currentColor" /> Ascolta
+                                <Icon name="volume-2" size={20} fill="currentColor" /> Ascolta
                             </button>
                         )}
                     </div>
-
-                    <div className="mt-auto text-[9px] text-white bg-indigo-900/40 px-3 py-1 rounded-full font-black uppercase tracking-widest backdrop-blur-md mb-2">CRUCIBATTLE! v1.1 • 8x8 Grid</div>
                 </div>
             );
         };
