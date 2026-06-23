@@ -275,7 +275,7 @@
                                 if (nextTotal % WORDS_PER_REWARD === 0) {
                                     if (REWARD_VIDEOS.length > 0) {
                                         const randomVid = REWARD_VIDEOS[Math.floor(Math.random() * REWARD_VIDEOS.length)];
-                                        setSelectedVideo(`assets/video/${randomVid}`);
+                                        setSelectedVideo(`assets/${randomVid}`);
                                     }
                                     setShowReward(true);
                                     setChestState('closed');
