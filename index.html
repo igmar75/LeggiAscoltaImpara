@@ -87,7 +87,7 @@
         };
 
         const GRID_SIZE = 8; 
-        const WORDS_PER_REWARD = 1;
+        const WORDS_PER_REWARD = 5;
 
         // Parole di fallback
         const FALLBACK_WORDS = [
@@ -526,7 +526,7 @@
                                 </div>
 
                                 {/* 8x8 Grid */}
-                                <div id="grid-container" className="grid gap-1.5 p-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-4 border-white w-full max-w-[450px] aspect-square">
+                                <div id="grid-container" className="grid gap-1.5 p-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-4 border-white w-full max-w-[450px] aspect-square" style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}>
                                     {grid.map((row, r) => row.map((char, c) => {
                                         const id = `${r}-${c}`;
                                         const status = feedbackMap[id];
