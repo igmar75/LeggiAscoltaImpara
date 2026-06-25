@@ -38,6 +38,7 @@
 <body>
     <div id="root"></div>
 
+    <!-- Configurazione sicura di Babel per forzare il runtime classico senza errori -->
     <script>
         Babel.registerPreset('react-classic', {
             presets: [
@@ -50,22 +51,23 @@
         // ==========================================
         //         CONFIGURAZIONE DI BASE DEL GIOCO
         // ==========================================
-        const DEBUG_MODE = true; // Imposta a false per nascondere il pannello in basso
+        const DEBUG_MODE = true; // Imposta a false per nascondere il pannello in basso una volta terminati i test
 
         const AUDIO_CONFIG = {
-            bgMusicVolume: 0.3,
-            bgMusicVolumeDucked: 0.1,
-            toneVolume: 0.4,
-            rewardToneVolume: 0.05,
-            speechVolume: 1.0,
-            speechRate: 0.7,
-            victoryVolume: 0.5,
-            videoVolume: 0.8
+            bgMusicVolume: 0.3,       // Volume normale musica di sottofondo (0.0 - 1.0)
+            bgMusicVolumeDucked: 0.1, // Volume musica ridotto durante la schermata del forziere (0.0 - 1.0)
+            toneVolume: 0.4,          // Volume dei suoni dei tasti e della scossa del forziere (0.0 - 1.0)
+            rewardToneVolume: 0.05,   // Volume della melodia iniziale del forziere (0.0 - 1.0)
+            speechVolume: 1.0,        // Volume della voce che legge le parole (0.0 - 1.0)
+            speechRate: 0.7,          // Velocità della voce che legge le parole (più basso = più lento)
+            victoryVolume: 0.5,       // Volume del jingle MP3 di vittoria (0.0 - 1.0)
+            videoVolume: 0.8          // Volume del video premio (0.0 - 1.0)
         };
 
         // ==========================================
         //         ELENCO DEI VIDEO PREMIO
         // ==========================================
+        // I video devono risiedere direttamente dentro la cartella "assets/"
         const REWARD_VIDEOS = [
             "skibidi_toilet.mp4",
             "skibidi_toilet_gigante.mp4"
@@ -86,7 +88,7 @@
         };
 
         const GRID_SIZE = 8; 
-        const WORDS_PER_REWARD = 1; // Ogni quante parole mostrare il forziere
+        const WORDS_PER_REWARD = 5; // Ogni quante parole mostrare il forziere
 
         const FALLBACK_WORDS = [
             "MAMMA", "PAPA", "NONNO", "NONNA", "CANE", "GATTO", "SOLE", "MARE", 
@@ -108,7 +110,7 @@
             const [foundCount, setFoundCount] = useState(0);
             const [totalSolved, setTotalSolved] = useState(0);
             const [showReward, setShowReward] = useState(false);
-            const [chestState, setChestState] = useState('closed'); 
+            const [chestState, setChestState] = useState('closed'); // 'closed', 'shaking', 'ready_to_open', 'open'
             const [selectedVideo, setSelectedVideo] = useState('');
             
             const [debugLogs, setDebugLogs] = useState([]);
@@ -172,7 +174,6 @@
             }, [addLog]);
 
             useEffect(() => {
-                // Imposta il volume quando il componente video si monta o aggiorna
                 if (videoRef.current && showReward && chestState === 'open') {
                     videoRef.current.volume = AUDIO_CONFIG.videoVolume;
                 }
@@ -314,7 +315,8 @@
                                 if (nextTotal % WORDS_PER_REWARD === 0) {
                                     if (REWARD_VIDEOS.length > 0) {
                                         const randomVid = REWARD_VIDEOS[Math.floor(Math.random() * REWARD_VIDEOS.length)];
-                                        const videoPath = `assets/video/${randomVid}`;
+                                        // Modifica definitiva: I video sono ora cercati direttamente dentro la cartella "assets/"
+                                        const videoPath = `assets/${randomVid}`;
                                         setSelectedVideo(encodeURI(videoPath));
                                         addLog(`Selezionato video premio casuale: ${videoPath}`);
                                     }
@@ -399,11 +401,4 @@
                                                 <div className="w-12 h-12 bg-yellow-400 rounded-lg border-4 border-orange-800 z-10"></div>
                                             </div>
                                         </div>
-                                        <div className="text-white/60 mt-12 font-bold text-xl animate-pulse uppercase tracking-widest text-center">Tocca il forziere!</div>
-                                    </React.Fragment>
-                                ) : chestState === 'ready_to_open' ? (
-                                    <div className="flex flex-col items-center zoom-in text-center">
-                                        <div className="text-yellow-400 text-4xl font-black mb-12 tracking-widest uppercase">IL FORZIERE È PRONTO!</div>
-                                        <button 
-                                            onClick={triggerVideoPlayback}
-                                            className="bg-green-500 hover:bg-green-600 text-white px-10 py-6 rounded-3xl tex
+           
