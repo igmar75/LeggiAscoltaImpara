@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -37,7 +38,6 @@
 <body>
     <div id="root"></div>
 
-    <!-- Configurazione sicura di Babel per forzare il runtime classico senza errori -->
     <script>
         Babel.registerPreset('react-classic', {
             presets: [
@@ -50,17 +50,17 @@
         // ==========================================
         //         CONFIGURAZIONE DI BASE DEL GIOCO
         // ==========================================
-        const DEBUG_MODE = true; // Imposta a false per nascondere il pannello di debug in fondo
+        const DEBUG_MODE = true; // Imposta a false per nascondere il pannello in basso
 
         const AUDIO_CONFIG = {
-            bgMusicVolume: 0.3,       // Volume normale musica di sottofondo (0.0 - 1.0)
-            bgMusicVolumeDucked: 0.1, // Volume musica ridotto durante la schermata del forziere (0.0 - 1.0)
-            toneVolume: 0.4,          // Volume dei suoni dei tasti e della scossa del forziere (0.0 - 1.0)
-            rewardToneVolume: 0.05,   // Volume della melodia iniziale del forziere (0.0 - 1.0)
-            speechVolume: 1.0,        // Volume della voce che legge le parole (0.0 - 1.0)
-            speechRate: 0.7,          // Velocità della voce che legge le parole (più basso = più lento)
-            victoryVolume: 0.5,       // Volume del jingle MP3 di vittoria (0.0 - 1.0)
-            videoVolume: 0.8          // Volume del video premio (0.0 - 1.0)
+            bgMusicVolume: 0.3,
+            bgMusicVolumeDucked: 0.1,
+            toneVolume: 0.4,
+            rewardToneVolume: 0.05,
+            speechVolume: 1.0,
+            speechRate: 0.7,
+            victoryVolume: 0.5,
+            videoVolume: 0.8
         };
 
         // ==========================================
@@ -73,7 +73,6 @@
 
         const { useState, useEffect, useCallback, useRef } = React;
         
-        // Helper per le icone Lucide in React tramite sostituzione nativa DOM
         const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
             const iconRef = useRef(null);
             useEffect(() => {
@@ -87,9 +86,8 @@
         };
 
         const GRID_SIZE = 8; 
-        const WORDS_PER_REWARD = 5;
+        const WORDS_PER_REWARD = 1; // Ogni quante parole mostrare il forziere
 
-        // Parole di fallback
         const FALLBACK_WORDS = [
             "MAMMA", "PAPA", "NONNO", "NONNA", "CANE", "GATTO", "SOLE", "MARE", 
             "CASA", "PALLA", "LIBRO", "FIORE", "PANE", "LATTE", "MELA", "NIDO",
@@ -110,10 +108,9 @@
             const [foundCount, setFoundCount] = useState(0);
             const [totalSolved, setTotalSolved] = useState(0);
             const [showReward, setShowReward] = useState(false);
-            const [chestState, setChestState] = useState('closed'); // 'closed', 'shaking', 'ready_to_open', 'open'
+            const [chestState, setChestState] = useState('closed'); 
             const [selectedVideo, setSelectedVideo] = useState('');
             
-            // Console Logs per il Debugger Mobile
             const [debugLogs, setDebugLogs] = useState([]);
             const [isConsoleOpen, setIsConsoleOpen] = useState(true);
 
@@ -122,14 +119,12 @@
             const bgMusicRef = useRef(null);
             const videoRef = useRef(null);
 
-            // Funzione helper per scrivere nella nostra console di debug a schermo
             const addLog = useCallback((msg, type = "info") => {
                 const timestamp = new Date().toLocaleTimeString();
                 setDebugLogs(prev => [{ timestamp, msg, type }, ...prev].slice(0, 100));
                 console.log(`[GameDebug] [${type.toUpperCase()}] ${msg}`);
             }, []);
 
-            // Intercettazione errori globali di runtime nel browser
             useEffect(() => {
                 const handleError = (event) => {
                     addLog(`Errore di runtime: ${event.message} in ${event.filename}:${event.lineno}`, "error");
@@ -138,7 +133,6 @@
                 return () => window.removeEventListener('error', handleError);
             }, [addLog]);
 
-            // Inizializzazione musica di sottofondo
             useEffect(() => {
                 bgMusicRef.current = new Audio('audio/background_music.mp3');
                 bgMusicRef.current.loop = true;
@@ -153,11 +147,9 @@
                 };
             }, [addLog]);
 
-            // Caricamento parole
             useEffect(() => {
                 const loadWords = async () => {
                     try {
-                        addLog("Tentativo caricamento assets/words.txt...");
                         const response = await fetch('assets/words.txt');
                         if (!response.ok) throw new Error(`HTTP ${response.status}`);
                         const text = await response.text();
@@ -166,13 +158,11 @@
                             .filter(w => w.length >= 3 && w.length <= GRID_SIZE);
                         
                         if (list.length > 0) {
-                            addLog(`Caricate correttamente ${list.length} parole da file esterno.`);
                             setWords(list);
                         } else {
                             throw new Error("Nessuna parola idonea trovata nel file txt.");
                         }
                     } catch (err) {
-                        addLog(`Impossibile leggere words.txt (${err.message}). Utilizzo fallback hardcoded.`, "warning");
                         setWords(FALLBACK_WORDS);
                     } finally {
                         setLoading(false);
@@ -181,32 +171,12 @@
                 loadWords();
             }, [addLog]);
 
-            // Controllo ed esecuzione del video premio
             useEffect(() => {
+                // Imposta il volume quando il componente video si monta o aggiorna
                 if (videoRef.current && showReward && chestState === 'open') {
-                    addLog(`Preparazione video tag per sorgente: ${videoRef.current.src}`);
                     videoRef.current.volume = AUDIO_CONFIG.videoVolume;
-                    
-                    // Forza esplicitamente l'esecuzione del video
-                    const playPromise = videoRef.current.play();
-                    if (playPromise !== undefined) {
-                        playPromise
-                            .then(() => {
-                                addLog("Riproduzione video avviata con successo.", "success");
-                            })
-                            .catch(error => {
-                                addLog(`Riproduzione bloccata dal browser: ${error.message}. Tentativo di play con video silenziato...`, "warning");
-                                // Prova a forzare il play mutando il video se bloccato (regola di emergenza browser)
-                                if (videoRef.current) {
-                                    videoRef.current.muted = true;
-                                    videoRef.current.play()
-                                        .then(() => addLog("Riproduzione forzata in modalità MUTED.", "warning"))
-                                        .catch(err => addLog(`Impossibile avviare anche in modalità silenziata: ${err.message}`, "error"));
-                                }
-                            });
-                    }
                 }
-            }, [showReward, chestState, selectedVideo, addLog]);
+            }, [showReward, chestState, selectedVideo]);
 
             const playTone = (freq, type = 'sine', duration = 0.1, volume = AUDIO_CONFIG.toneVolume) => {
                 try {
@@ -262,7 +232,6 @@
                 }
                 setGrid(newGrid);
                 setCorrectCoords(coords);
-                addLog(`Nuova parola creata: "${displayWord}" (Maiuscola: ${nextCase})`);
             }, [isUppercase, words, addLog]);
 
             const speakWord = useCallback(() => {
@@ -290,8 +259,7 @@
                 addLog("Partita avviata dall'utente.");
                 if (bgMusicRef.current) {
                     bgMusicRef.current.play()
-                        .then(() => addLog("Musica di sottofondo in riproduzione."))
-                        .catch(e => addLog(`Musica di sottofondo bloccata dal browser: ${e.message}`, "warning"));
+                        .catch(e => addLog(`Musica bloccata dal browser: ${e.message}`, "warning"));
                 }
             };
 
@@ -307,7 +275,6 @@
                 setGameStarted(false);
                 setShowReward(false);
                 setFound(false);
-                addLog("Ritorno alla schermata iniziale eseguito.");
             };
 
             const handleCellClick = (r, c) => {
@@ -324,7 +291,7 @@
                             setFound(true);
                             const nextTotal = totalSolved + 1;
                             setTotalSolved(nextTotal);
-                            addLog(`Parola "${currentWord}" completata correttamente! Totale completate: ${nextTotal}`);
+                            addLog(`Parola completata! Totale completate: ${nextTotal}`);
                             
                             setTimeout(() => playTone(523, 'sine', 0.2, AUDIO_CONFIG.toneVolume), 100);
                             setTimeout(() => playTone(783, 'sine', 0.4, AUDIO_CONFIG.toneVolume), 300);
@@ -335,9 +302,7 @@
                             const victoryAudio = new Audio(soundPath);
                             victoryAudio.volume = AUDIO_CONFIG.victoryVolume;
                             victoryAudio.play()
-                                .then(() => addLog(`Jingle di vittoria eseguito (${soundPath}).`))
                                 .catch(() => {
-                                    addLog(`Riproduzione jingle fallita. Fallback a sintesi vocale.`, "warning");
                                     const winSound = new SpeechSynthesisUtterance("Urrà!");
                                     winSound.lang = 'it-IT';
                                     winSound.pitch = 1.3;
@@ -349,11 +314,9 @@
                                 if (nextTotal % WORDS_PER_REWARD === 0) {
                                     if (REWARD_VIDEOS.length > 0) {
                                         const randomVid = REWARD_VIDEOS[Math.floor(Math.random() * REWARD_VIDEOS.length)];
-                                        const videoPath = `assets/${randomVid}`;
+                                        const videoPath = `assets/video/${randomVid}`;
                                         setSelectedVideo(encodeURI(videoPath));
                                         addLog(`Selezionato video premio casuale: ${videoPath}`);
-                                    } else {
-                                        addLog("Nessun video inserito in REWARD_VIDEOS.", "warning");
                                     }
                                     setShowReward(true);
                                     setChestState('closed');
@@ -379,19 +342,15 @@
 
             const handleOpenChest = () => {
                 if (chestState === 'closed') {
-                    addLog("Toccato il forziere. Avvio scossa...");
                     setChestState('shaking');
                     playTone(200, 'square', 0.5, AUDIO_CONFIG.toneVolume);
                     setTimeout(() => {
-                        addLog("Scossa terminata. Forziere pronto per l'apertura sincrona.");
                         setChestState('ready_to_open');
                     }, 1000);
                 }
             };
 
-            // Apertura sincrona al secondo tocco: aggancia l'evento di play istantaneamente
             const triggerVideoPlayback = () => {
-                addLog("Apertura sincrona forziere attivata dall'utente.");
                 setChestState('open');
                 playRewardSound();
                 if (bgMusicRef.current) bgMusicRef.current.volume = 0;
@@ -408,10 +367,9 @@
                 initGame();
             };
 
-            // Funzione di debug per testare un video web sicuramente compatibile
             const loadTestVideo = () => {
                 const testUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
-                addLog(`DEBUG: Forzatura caricamento video di test pubblico compatibile: ${testUrl}`, "warning");
+                addLog(`Forzatura video di test: ${testUrl}`, "warning");
                 setSelectedVideo(testUrl);
                 setChestState('open');
             };
@@ -448,179 +406,4 @@
                                         <div className="text-yellow-400 text-4xl font-black mb-12 tracking-widest uppercase">IL FORZIERE È PRONTO!</div>
                                         <button 
                                             onClick={triggerVideoPlayback}
-                                            className="bg-green-500 hover:bg-green-600 text-white px-10 py-6 rounded-3xl text-3xl font-black shadow-[0_8px_0_rgb(21,128,61)] active:translate-y-1 active:shadow-none transition-all uppercase tracking-wider animate-pulse"
-                                        >
-                                            Apri il regalo! 🎁
-                                        </button>
-                                        <div className="text-white/40 mt-6 text-sm italic">Necessario un tocco diretto per avviare il suono del video</div>
-                                    </div>
-                                ) : (
-                                    <div className="w-full max-w-lg flex flex-col items-center justify-center zoom-in">
-                                        {selectedVideo ? (
-                                            <div className="w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-yellow-400 aspect-video relative">
-                                                <video 
-                                                    ref={videoRef}
-                                                    src={selectedVideo}
-                                                    autoPlay
-                                                    playsInline
-                                                    controls={false}
-                                                    onEnded={handleCloseReward}
-                                                    onPlay={() => addLog("Evento video: PLAY iniziato.")}
-                                                    onPlaying={() => addLog("Evento video: PLAYING in corso.")}
-                                                    onWaiting={() => addLog("Evento video: WAITING (buffering)...", "warning")}
-                                                    onStalled={() => addLog("Evento video: STALLED (flusso dati interrotto).", "error")}
-                                                    onError={(e) => {
-                                                        const videoErr = videoRef.current?.error;
-                                                        let errorDetails = "Sconosciuto";
-                                                        if (videoErr) {
-                                                            if (videoErr.code === 1) errorDetails = "MEDIA_ERR_ABORTED (Caricamento interrotto)";
-                                                            if (videoErr.code === 2) errorDetails = "MEDIA_ERR_NETWORK (Errore di rete)";
-                                                            if (videoErr.code === 3) errorDetails = "MEDIA_ERR_DECODE (Errore di decodifica/codec)";
-                                                            if (videoErr.code === 4) errorDetails = "MEDIA_ERR_SRC_NOT_SUPPORTED (Formato o percorso non valido)";
-                                                        }
-                                                        addLog(`Errore critico riproduzione video: [Codice ${videoErr ? videoErr.code : '?'}] - ${errorDetails}`, "error");
-                                                        // Fallback automatico dopo 3 secondi in caso di errore per sbloccare il gioco
-                                                        setTimeout(handleCloseReward, 3000);
-                                                    }}
-                                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="text-yellow-400 flex gap-4">
-                                                <Icon name="star" size={80} fill="currentColor" className="animate-bounce" />
-                                                <Icon name="star" size={100} fill="currentColor" className="animate-bounce [animation-delay:0.1s]" />
-                                                <Icon name="star" size={80} fill="currentColor" className="animate-bounce [animation-delay:0.2s]" />
-                                            </div>
-                                        )}
-                                        <button 
-                                            onClick={handleCloseReward}
-                                            className="mt-8 bg-yellow-400 text-indigo-900 px-10 py-4 rounded-2xl text-2xl font-black shadow-[0_5px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all uppercase"
-                                        >
-                                            Avanti!
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {gameStarted ? (
-                            <div className="w-full max-w-md flex flex-col items-center flex-grow">
-                                {/* Progress Bar */}
-                                <div className="w-full flex items-center justify-between mb-2 px-2 bg-white/30 backdrop-blur-sm rounded-2xl p-2 border border-white/20 mt-2">
-                                    <div className="flex items-center gap-1 bg-white px-3 py-1 rounded-xl shadow-sm border-b-2 border-indigo-100">
-                                        <Icon name="star" size={18} className="text-yellow-500" fill="currentColor" />
-                                        <span className="font-black text-indigo-900 text-lg">{totalSolved}</span>
-                                    </div>
-                                    <div className="flex-1 mx-3 bg-indigo-200/50 h-5 rounded-full overflow-hidden border-2 border-white shadow-inner relative">
-                                        <div className="bg-yellow-400 h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(250,204,21,0.5)]" style={{ width: `${(totalSolved % WORDS_PER_REWARD) * (100/WORDS_PER_REWARD)}%` }} />
-                                    </div>
-                                    <div className="bg-white p-1 rounded-xl shadow-sm border-b-2 border-indigo-100 text-indigo-300">
-                                        <Icon name="gift" size={20} className={totalSolved % WORDS_PER_REWARD === 0 && totalSolved !== 0 ? "text-green-500 animate-bounce" : ""} />
-                                    </div>
-                                </div>
-
-                                {/* Word Display */}
-                                <div className="w-full bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-4 mb-4 text-center border-b-4 border-indigo-200">
-                                    <div className="text-indigo-400 uppercase text-[10px] font-black tracking-widest mb-1">Cerca questa parola:</div>
-                                    <div className={`text-5xl font-black tracking-tighter ${found ? 'text-green-500 scale-110' : 'text-indigo-900'} transition-all`}>{currentWord}</div>
-                                </div>
-
-                                {/* 8x8 Grid */}
-                                <div id="grid-container" className="grid gap-1.5 p-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-4 border-white w-full max-w-[450px] aspect-square" style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}>
-                                    {grid.map((row, r) => row.map((char, c) => {
-                                        const id = `${r}-${c}`;
-                                        const status = feedbackMap[id];
-                                        let cellClass = "bg-white text-indigo-800 border-indigo-100";
-                                        if (status === 'correct') cellClass = "bg-green-500 text-white shadow-inner scale-95 border-green-600";
-                                        if (status === 'wrong') cellClass = "bg-red-500 text-white animate-shake border-red-600";
-                                        return (
-                                            <button key={id} onClick={() => handleCellClick(r, c)} className={`flex items-center justify-center text-2xl sm:text-3xl font-black rounded-lg transition-all duration-200 aspect-square border-b-2 ${cellClass} ${!status ? 'hover:bg-indigo-50 active:bg-indigo-200' : ''}`}>{char}</button>
-                                        );
-                                    }))}
-                                </div>
-
-                                {/* Victory Banner */}
-                                <div className="mt-4 h-12 flex items-center justify-center">
-                                    {found && (
-                                        <div className="flex items-center gap-2 text-green-600 bg-white/90 backdrop-blur-md px-6 py-2 rounded-full font-black text-2xl shadow-lg border-b-4 border-green-200 animate-bounce">
-                                            <Icon name="check-circle-2" size={32} className="stroke-[3]" /> BRAVO!
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Tasto ESCI (X) */}
-                                <button 
-                                    onClick={handleExitGame}
-                                    className="absolute bottom-4 right-4 bg-red-600 text-white p-3 rounded-2xl shadow-lg active:scale-90 z-50 border-b-4 border-red-800 transition-transform"
-                                >
-                                    <Icon name="x" size={24} />
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center flex-grow text-center">
-                                <div className="bg-white/95 backdrop-blur-sm p-8 rounded-3xl shadow-2xl max-w-sm border-b-8 border-indigo-200">
-                                    <div className="flex justify-center mb-4 text-yellow-400">
-                                        <Icon name="star" size={48} fill="currentColor" />
-                                    </div>
-                                    <h1 className="text-4xl font-black text-indigo-900 mb-2 tracking-tight uppercase">CRUCIBATTLE!</h1>
-                                    <p className="text-lg text-indigo-600 mb-0.5 font-medium italic">Il gioco delle super parole</p>
-                                    <p className="text-xs text-indigo-400 mb-8 font-normal italic">Ver 1.1</p>
-                                    <button onClick={handleStartGame} className="w-full bg-yellow-400 text-indigo-900 px-8 py-5 rounded-2xl text-3xl font-black shadow-[0_6px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all tracking-tighter uppercase">Gioca!</button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ==========================================
-                               PANNELLO DI DEBUG (SUL TELEFONO)
-                       ========================================== */}
-                    {DEBUG_MODE && (
-                        <div className="fixed bottom-0 left-0 right-0 z-[200] bg-zinc-900 text-zinc-300 font-mono text-xs border-t-4 border-red-500 shadow-2xl transition-all duration-300" style={{ height: isConsoleOpen ? '180px' : '30px' }}>
-                            <div className="flex items-center justify-between bg-zinc-800 px-4 py-1 border-b border-zinc-700">
-                                <span className="font-bold text-red-400 flex items-center gap-1">
-                                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                                    PANNELLO DEBUGGING MOBILE
-                                </span>
-                                <div className="flex gap-2">
-                                    <button onClick={loadTestVideo} className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded text-[10px] font-bold">
-                                        Carica Video Test (Web)
-                                    </button>
-                                    <button onClick={() => setDebugLogs([])} className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-2 py-0.5 rounded text-[10px]">
-                                        Cancella Log
-                                    </button>
-                                    <button onClick={() => setIsConsoleOpen(!isConsoleOpen)} className="bg-zinc-700 text-white px-3 py-0.5 rounded font-bold">
-                                        {isConsoleOpen ? 'Riduci' : 'Espandi'}
-                                    </button>
-                                </div>
-                            </div>
-                            {isConsoleOpen && (
-                                <div className="p-2 overflow-y-auto h-[145px] flex flex-col-reverse gap-1 select-text">
-                                    {debugLogs.length === 0 ? (
-                                        <div className="text-zinc-500 italic">Nessun log registrato. Gioca per generare eventi.</div>
-                                    ) : (
-                                        debugLogs.map((log, index) => {
-                                            let color = "text-zinc-300";
-                                            if (log.type === "error") color = "text-red-400 font-bold";
-                                            if (log.type === "warning") color = "text-yellow-400";
-                                            if (log.type === "success") color = "text-green-400 font-bold";
-                                            return (
-                                                <div key={index} className={`border-b border-zinc-800/50 pb-0.5 leading-tight ${color}`}>
-                                                    <span className="text-zinc-500 mr-2">[{log.timestamp}]</span>
-                                                    {log.msg}
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                                            className="bg-green-500 hover:bg-green-600 text-white px-10 py-6 rounded-3xl tex
