@@ -395,9 +395,25 @@
 
             const loadTestVideo = () => {
                 const testUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
-                addLog(`Forzatura caricamento video di test pubblico: ${testUrl}`, "warning");
+                addLog(`Forzatura video di test: ${testUrl}`, "warning");
                 setSelectedVideo(testUrl);
                 setChestState('open');
+            };
+
+            // Nuova funzione per verificare l'esistenza del file prima di caricarlo
+            const checkFileExistence = async () => {
+                const videoPath = `assets/${REWARD_VIDEOS[0]}`;
+                addLog(`Verifica esistenza: ${videoPath}...`);
+                try {
+                    const response = await fetch(videoPath, { method: 'HEAD' });
+                    if (response.ok) {
+                        addLog("FILE TROVATO! Il server risponde OK.", "success");
+                    } else {
+                        addLog(`ERRORE 404: Il file non esiste sul server. Controlla il nome o l'upload su GitHub. Status: ${response.status}`, "error");
+                    }
+                } catch (e) {
+                    addLog(`Errore di rete durante la verifica: ${e.message}`, "error");
+                }
             };
 
             return (
@@ -569,6 +585,9 @@
                                     DEBUGGER MOBILE
                                 </span>
                                 <div className="flex gap-2">
+                                    <button onClick={checkFileExistence} className="bg-green-700 hover:bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">
+                                        Test Esistenza File
+                                    </button>
                                     <button onClick={loadTestVideo} className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded text-[10px] font-bold">
                                         Test Video Pubblico
                                     </button>
