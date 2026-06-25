@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -50,7 +51,7 @@
         // ==========================================
         //         CONFIGURAZIONE DI BASE DEL GIOCO
         // ==========================================
-        const DEBUG_MODE = true; // Imposta a false per nascondere il pannello in basso una volta terminati i test
+        const DEBUG_MODE = true; // Imposta a false per nascondere il pannello di debug in fondo ad attività ultimata
 
         const AUDIO_CONFIG = {
             bgMusicVolume: 0.3,       // Volume normale musica di sottofondo (0.0 - 1.0)
@@ -87,7 +88,7 @@
         };
 
         const GRID_SIZE = 8; 
-        const WORDS_PER_REWARD = 5; // Ogni quante parole mostrare il forziere
+        const WORDS_PER_REWARD = 1; // Ogni quante parole mostrare il forziere
 
         const FALLBACK_WORDS = [
             "MAMMA", "PAPA", "NONNO", "NONNA", "CANE", "GATTO", "SOLE", "MARE", 
@@ -172,11 +173,37 @@
                 loadWords();
             }, [addLog]);
 
+            // Effetto che gestisce il caricamento e la riproduzione del video in modo robusto
             useEffect(() => {
-                if (videoRef.current && showReward && chestState === 'open') {
+                if (videoRef.current && showReward && chestState === 'open' && selectedVideo) {
+                    addLog(`Inizializzazione riproduzione video: ${selectedVideo}`);
                     videoRef.current.volume = AUDIO_CONFIG.videoVolume;
+                    
+                    try {
+                        // Forza il caricamento dell'URL direttamente associato al tag video
+                        videoRef.current.load();
+                        
+                        const playPromise = videoRef.current.play();
+                        if (playPromise !== undefined) {
+                            playPromise
+                                .then(() => {
+                                    addLog("Riproduzione video avviata con successo.", "success");
+                                })
+                                .catch(error => {
+                                    addLog(`Play bloccato: ${error.message}. Tento riproduzione silenziosa di emergenza...`, "warning");
+                                    if (videoRef.current) {
+                                        videoRef.current.muted = true;
+                                        videoRef.current.play()
+                                            .then(() => addLog("Riproduzione forzata avviata (SILENZIATA).", "success"))
+                                            .catch(err => addLog(`Play fallito definitivamente: ${err.message}`, "error"));
+                                    }
+                                });
+                        }
+                    } catch (e) {
+                        addLog(`Errore sincrono durate il setup del video: ${e.message}`, "error");
+                    }
                 }
-            }, [showReward, chestState, selectedVideo]);
+            }, [showReward, chestState, selectedVideo, addLog]);
 
             const playTone = (freq, type = 'sine', duration = 0.1, volume = AUDIO_CONFIG.toneVolume) => {
                 try {
@@ -314,10 +341,9 @@
                                 if (nextTotal % WORDS_PER_REWARD === 0) {
                                     if (REWARD_VIDEOS.length > 0) {
                                         const randomVid = REWARD_VIDEOS[Math.floor(Math.random() * REWARD_VIDEOS.length)];
-                                        // Modifica definitiva: I video sono ora cercati direttamente dentro la cartella "assets/"
                                         const videoPath = `assets/${randomVid}`;
                                         setSelectedVideo(encodeURI(videoPath));
-                                        addLog(`Selezionato video premio casuale: ${videoPath}`);
+                                        addLog(`Selezionato video: ${videoPath}`);
                                     }
                                     setShowReward(true);
                                     setChestState('closed');
@@ -370,7 +396,7 @@
 
             const loadTestVideo = () => {
                 const testUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
-                addLog(`Forzatura video di test: ${testUrl}`, "warning");
+                addLog(`Forzatura caricamento video di test pubblico: ${testUrl}`, "warning");
                 setSelectedVideo(testUrl);
                 setChestState('open');
             };
@@ -416,27 +442,43 @@
                                     <div className="w-full max-w-lg flex flex-col items-center justify-center zoom-in">
                                         {selectedVideo ? (
                                             <div className="w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-yellow-400 aspect-video relative">
-                                                {/* Utilizzo di key={selectedVideo} per forzare la rigenerazione del tag video su Android */}
+                                                {/* Impostiamo il file src DIRETTAMENTE sull'elemento video.
+                                                    Questo permette un monitoraggio accurato degli errori HTML5 e bypassa
+                                                    i bug del ciclo di caricamento dei tag figli <source> in React.
+                                                */}
                                                 <video 
                                                     key={selectedVideo}
                                                     ref={videoRef}
+                                                    src={selectedVideo}
                                                     autoPlay
                                                     playsInline
                                                     controls={false}
                                                     onEnded={handleCloseReward}
                                                     onPlay={() => {
                                                         addLog("Evento video: PLAY iniziato.");
-                                                        if (videoRef.current) videoRef.current.volume = AUDIO_CONFIG.videoVolume;
                                                     }}
                                                     onError={(e) => {
-                                                        const videoErr = videoRef.current?.error;
-                                                        addLog(`Errore decodifica video [Codice ${videoErr ? videoErr.code : '?'}]`, "error");
+                                                        const videoEl = videoRef.current;
+                                                        const videoErr = videoEl?.error;
+                                                        const netState = videoEl?.networkState;
+                                                        const rdyState = videoEl?.readyState;
+                                                        
+                                                        let errStr = "Sconosciuto";
+                                                        if (videoErr) {
+                                                            if (videoErr.code === 1) errStr = "ABORTED (Caricamento interrotto)";
+                                                            if (videoErr.code === 2) errStr = "NETWORK (Errore di rete/404)";
+                                                            if (videoErr.code === 3) errStr = "DECODE (Errore decodifica codec)";
+                                                            if (videoErr.code === 4) errStr = "SRC_NOT_SUPPORTED (Formato o percorso non valido)";
+                                                        }
+                                                        
+                                                        addLog(`Errore video: ${errStr} [Codice ${videoErr ? videoErr.code : '?'}] (NetworkState: ${netState}, ReadyState: ${rdyState})`, "error");
+                                                        addLog(`Sorgente tentata: ${videoEl?.currentSrc || selectedVideo}`, "error");
+                                                        
+                                                        // Sblocca il gioco dopo 3 secondi in caso di fallimento
                                                         setTimeout(handleCloseReward, 3000);
                                                     }}
                                                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                                >
-                                                    <source src={selectedVideo} type="video/mp4" />
-                                                </video>
+                                                />
                                             </div>
                                         ) : (
                                             <div className="text-yellow-400 flex gap-4">
@@ -476,7 +518,6 @@
                                     <div className={`text-5xl font-black tracking-tighter ${found ? 'text-green-500 scale-110' : 'text-indigo-900'} transition-all`}>{currentWord}</div>
                                 </div>
 
-                                {/* Corretto: ripristinato il template grid corretto con i parametri di GRID_SIZE */}
                                 <div className="grid gap-1.5 p-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-4 border-white w-full max-w-[450px] aspect-square" style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}>
                                     {grid.map((row, r) => row.map((char, c) => {
                                         const id = `${r}-${c}`;
@@ -513,7 +554,7 @@
                                     </div>
                                     <h1 className="text-4xl font-black text-indigo-900 mb-2 tracking-tight uppercase">CRUCIBATTLE!</h1>
                                     <p className="text-lg text-indigo-600 mb-0.5 font-medium italic">Il gioco delle super parole</p>
-                                    <p className="text-xs text-indigo-400 mb-8 font-normal italic">Ver 1.1</p>
+                                    <p className="text-xs text-indigo-400 mb-8 font-normal italic">Ver 1.2</p>
                                     <button onClick={handleStartGame} className="w-full bg-yellow-400 text-indigo-900 px-8 py-5 rounded-2xl text-3xl font-black shadow-[0_6px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all tracking-tighter uppercase">Gioca!</button>
                                 </div>
                             </div>
