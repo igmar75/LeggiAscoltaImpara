@@ -50,7 +50,10 @@
         // ==========================================
         //         CONFIGURAZIONE DI BASE DEL GIOCO
         // ==========================================
-        const DEBUG_MODE = true; // Imposta a false per nascondere il pannello di debug in fondo ad attività ultimata
+        const DEBUG_MODE = false; // Imposta a false per nascondere il pannello di debug in fondo ad attività ultimata
+        const VERSION = "Ver 1.3"; // Ogni quante parole mostrare il forziere
+        const WORDS_PER_REWARD = 1; // Ogni quante parole mostrare il forziere
+        const GRID_SIZE = 8;
 
         const AUDIO_CONFIG = {
             bgMusicVolume: 0.3,       // Volume normale musica di sottofondo (0.0 - 1.0)
@@ -85,9 +88,6 @@
             }, [name]);
             return <i data-lucide={name} ref={iconRef} className={className} style={{ width: `${size}px`, height: `${size}px`, fill: fill }}></i>;
         };
-
-        const GRID_SIZE = 8; 
-        const WORDS_PER_REWARD = 5; // Ogni quante parole mostrare il forziere
 
         const FALLBACK_WORDS = [
             "MAMMA", "PAPA", "NONNO", "NONNA", "CANE", "GATTO", "SOLE", "MARE", 
@@ -400,7 +400,6 @@
                 setChestState('open');
             };
 
-            // Nuova funzione per verificare l'esistenza del file prima di caricarlo
             const checkFileExistence = async () => {
                 const videoPath = `assets/${REWARD_VIDEOS[0]}`;
                 addLog(`Verifica esistenza: ${videoPath}...`);
@@ -453,55 +452,57 @@
                                             Apri il regalo! 🎁
                                         </button>
                                     </div>
+                                ) : selectedVideo ? (
+                                    // NUOVA MODALITA': Video Fullscreen
+                                    <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center zoom-in">
+                                        <video 
+                                            key={selectedVideo}
+                                            ref={videoRef}
+                                            src={selectedVideo}
+                                            autoPlay
+                                            playsInline
+                                            controls={false}
+                                            onEnded={handleCloseReward}
+                                            onPlay={() => {
+                                                addLog("Evento video: PLAY iniziato.");
+                                            }}
+                                            onError={(e) => {
+                                                const videoEl = videoRef.current;
+                                                const videoErr = videoEl?.error;
+                                                const netState = videoEl?.networkState;
+                                                const rdyState = videoEl?.readyState;
+                                                
+                                                let errStr = "Sconosciuto";
+                                                if (videoErr) {
+                                                    if (videoErr.code === 1) errStr = "ABORTED (Caricamento interrotto)";
+                                                    if (videoErr.code === 2) errStr = "NETWORK (Errore di rete/404)";
+                                                    if (videoErr.code === 3) errStr = "DECODE (Errore decodifica codec)";
+                                                    if (videoErr.code === 4) errStr = "SRC_NOT_SUPPORTED (Formato o percorso non valido)";
+                                                }
+                                                
+                                                addLog(`Errore video: ${errStr} [Codice ${videoErr ? videoErr.code : '?'}] (NetworkState: ${netState}, ReadyState: ${rdyState})`, "error");
+                                                addLog(`Sorgente tentata: ${videoEl?.currentSrc || selectedVideo}`, "error");
+                                                
+                                                // Sblocca il gioco dopo 3 secondi in caso di fallimento
+                                                setTimeout(handleCloseReward, 3000);
+                                            }}
+                                            className="w-full h-full object-contain"
+                                        />
+                                        <button 
+                                            onClick={handleCloseReward}
+                                            className="absolute bottom-8 bg-yellow-400/90 hover:bg-yellow-400 text-indigo-900 px-10 py-4 rounded-2xl text-2xl font-black shadow-[0_5px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all uppercase z-10 backdrop-blur-sm border-2 border-yellow-200"
+                                        >
+                                            Avanti!
+                                        </button>
+                                    </div>
                                 ) : (
+                                    // Fallback (solo se i video non sono configurati)
                                     <div className="w-full max-w-lg flex flex-col items-center justify-center zoom-in">
-                                        {selectedVideo ? (
-                                            <div className="w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-yellow-400 aspect-video relative">
-                                                {/* Impostiamo il file src DIRETTAMENTE sull'elemento video.
-                                                    Questo permette un monitoraggio accurato degli errori HTML5 e bypassa
-                                                    i bug del ciclo di caricamento dei tag figli <source> in React.
-                                                */}
-                                                <video 
-                                                    key={selectedVideo}
-                                                    ref={videoRef}
-                                                    src={selectedVideo}
-                                                    autoPlay
-                                                    playsInline
-                                                    controls={false}
-                                                    onEnded={handleCloseReward}
-                                                    onPlay={() => {
-                                                        addLog("Evento video: PLAY iniziato.");
-                                                    }}
-                                                    onError={(e) => {
-                                                        const videoEl = videoRef.current;
-                                                        const videoErr = videoEl?.error;
-                                                        const netState = videoEl?.networkState;
-                                                        const rdyState = videoEl?.readyState;
-                                                        
-                                                        let errStr = "Sconosciuto";
-                                                        if (videoErr) {
-                                                            if (videoErr.code === 1) errStr = "ABORTED (Caricamento interrotto)";
-                                                            if (videoErr.code === 2) errStr = "NETWORK (Errore di rete/404)";
-                                                            if (videoErr.code === 3) errStr = "DECODE (Errore decodifica codec)";
-                                                            if (videoErr.code === 4) errStr = "SRC_NOT_SUPPORTED (Formato o percorso non valido)";
-                                                        }
-                                                        
-                                                        addLog(`Errore video: ${errStr} [Codice ${videoErr ? videoErr.code : '?'}] (NetworkState: ${netState}, ReadyState: ${rdyState})`, "error");
-                                                        addLog(`Sorgente tentata: ${videoEl?.currentSrc || selectedVideo}`, "error");
-                                                        
-                                                        // Sblocca il gioco dopo 3 secondi in caso di fallimento
-                                                        setTimeout(handleCloseReward, 3000);
-                                                    }}
-                                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="text-yellow-400 flex gap-4">
-                                                <Icon name="star" size={80} fill="currentColor" className="animate-bounce" />
-                                                <Icon name="star" size={100} fill="currentColor" className="animate-bounce [animation-delay:0.1s]" />
-                                                <Icon name="star" size={80} fill="currentColor" className="animate-bounce [animation-delay:0.2s]" />
-                                            </div>
-                                        )}
+                                        <div className="text-yellow-400 flex gap-4">
+                                            <Icon name="star" size={80} fill="currentColor" className="animate-bounce" />
+                                            <Icon name="star" size={100} fill="currentColor" className="animate-bounce [animation-delay:0.1s]" />
+                                            <Icon name="star" size={80} fill="currentColor" className="animate-bounce [animation-delay:0.2s]" />
+                                        </div>
                                         <button 
                                             onClick={handleCloseReward}
                                             className="mt-8 bg-yellow-400 text-indigo-900 px-10 py-4 rounded-2xl text-2xl font-black shadow-[0_5px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all uppercase"
@@ -569,7 +570,7 @@
                                     </div>
                                     <h1 className="text-4xl font-black text-indigo-900 mb-2 tracking-tight uppercase">CRUCIBATTLE!</h1>
                                     <p className="text-lg text-indigo-600 mb-0.5 font-medium italic">Il gioco delle super parole</p>
-                                    <p className="text-xs text-indigo-400 mb-8 font-normal italic">Ver 1.2</p>
+                                    <p className="text-xs text-indigo-400 mb-8 font-normal italic">VERSION</p>
                                     <button onClick={handleStartGame} className="w-full bg-yellow-400 text-indigo-900 px-8 py-5 rounded-2xl text-3xl font-black shadow-[0_6px_0_rgb(202,138,4)] active:translate-y-1 active:shadow-none transition-all tracking-tighter uppercase">Gioca!</button>
                                 </div>
                             </div>
